@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#FAFAFA;
@@ -7100,6 +7101,13 @@ const PANGYO = JSON.parse(document.getElementById('data-pangyo').textContent);
 const FRANCHISE = JSON.parse(document.getElementById('data-franchise').textContent);
 const CATEGORIES = PANGYO._meta.categories;
 
+// ===== Supabase (중앙 DB — 로그인 없이 방ID로 투표/주문 영구저장+실시간 동기화) =====
+const SUPABASE_URL = 'https://qhypqswlqgpcuexgiwgx.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoeXBxc3dscWdwY3VleGdpd2d4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MzU0ODgsImV4cCI6MjA5NjExMTQ4OH0.e9DZXncguyc9zzQOLRIXCpG1830upyFT6MDWpzXSTH8';
+let supa = null;
+try { if(window.supabase) supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); }
+catch(e){ console.warn('[supa] init fail', e); }
+
 // ===== 위치/거리 (H스퀘어 등 기준점에서 반경·가까운 순) =====
 const ORIGINS = {
   'H스퀘어':       {lat:37.3998, lng:127.1115},
@@ -7383,10 +7391,31 @@ function copyUrl(){
   copyToClipboard(location.href);
 }
 
-// ===== ntfy.sh pub/sub =====
+// ===== 실시간 동기화: Supabase(중앙 DB) 우선, ntfy 폴백 =====
 let ntfyConn = null;
+let supaChannel = null;
 function ntfyTopic(prefix, id){ return `maknae-ya-${prefix}-${id}-26b`; }
+function roomKey(prefix, id){ return `${prefix}_${id}`; }
 function ntfySubscribe(prefix, id, onMsg){
+  if(supa){
+    const rid = roomKey(prefix, id);
+    if(supaChannel){ try{ supa.removeChannel(supaChannel); }catch(e){} supaChannel=null; }
+    const seen = new Set();
+    const handle = (row)=>{ if(row&&row.id!=null){ if(seen.has(row.id)) return; seen.add(row.id); } try{ onMsg(row.payload); }catch(e){} };
+    // (1) 과거 입력 전부 재생 — 영구 보관(12h 제한 없음), 늦게 들어와도 다 받음
+    supa.from('entries').select('id,payload').eq('room_id', rid).order('id',{ascending:true})
+      .then(({data,error})=>{ if(!error&&data) data.forEach(handle); });
+    // (2) 실시간 INSERT 구독 — 다른 컴퓨터 입력이 즉시 들어옴
+    try{
+      supaChannel = supa.channel('rt_'+rid)
+        .on('postgres_changes', {event:'INSERT', schema:'public', table:'entries', filter:`room_id=eq.${rid}`}, p=>handle(p.new))
+        .subscribe();
+    }catch(e){ console.warn('[supa] sub fail', e); }
+    return;
+  }
+  return ntfySubscribeLegacy(prefix, id, onMsg);
+}
+function ntfySubscribeLegacy(prefix, id, onMsg){
   if(ntfyConn) ntfyConn.close();
   const topic = ntfyTopic(prefix, id);
   const seen = new Set(); // ntfy 메시지 id 기준 중복 방지 (replay ↔ live 겹침)
@@ -7415,6 +7444,15 @@ function ntfySubscribe(prefix, id, onMsg){
   }catch(e){}
 }
 function ntfyPublish(prefix, id, payload){
+  if(supa){
+    const rid = roomKey(prefix, id);
+    supa.from('entries').insert({room_id:rid, kind:(payload&&payload.type)||'msg', payload})
+      .then(({error})=>{ if(error) console.warn('[supa] insert', error); });
+    return;
+  }
+  return ntfyPublishLegacy(prefix, id, payload);
+}
+function ntfyPublishLegacy(prefix, id, payload){
   const topic = ntfyTopic(prefix, id);
   fetch(`https://ntfy.sh/${topic}`, {
     method: 'POST',
@@ -7811,6 +7849,9 @@ function renderDinnerRoom(){
   } else {
     document.getElementById('drWinner').innerHTML = '<div class="empty" style="padding:14px"><span style="font-size:24px">🗳️</span><br>아직 투표가 없어요</div>';
   }
+  if(total > 0){
+    document.getElementById('drWinner').innerHTML += `<button onclick="dinnerClearVotes()" style="width:100%;margin-top:12px;background:none;border:1px solid var(--bad);color:var(--bad);padding:11px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">🗑 투표 전체 초기화 (다시 받기)</button>`;
+  }
 }
 
 function voteFor(candId){
@@ -7827,6 +7868,16 @@ function voteFor(candId){
   renderDinnerRoom();
   ntfyPublish('dn', r.id, {type:'vote', voter:name, candId});
   toast(`${cand.name}에 투표했어요`);
+}
+
+function dinnerClearVotes(){
+  if(!confirm('모든 투표를 초기화할까요? 되돌릴 수 없어요.')) return;
+  const r = state.dr.room;
+  r.candidates.forEach(c=>{ c.votes = {}; });
+  saveRoom('dn', r);
+  renderDinnerRoom();
+  if(supa){ supa.from('entries').delete().eq('room_id', roomKey('dn', r.id)).then(()=>toast('투표를 초기화했어요')); }
+  else toast('투표를 초기화했어요');
 }
 
 function dinnerSendMail(){
@@ -8306,9 +8357,25 @@ function orAddDrink(){
 }
 
 function orRemoveOrder(idx){
+  const removed = state.or.room.orders[idx];
   state.or.room.orders.splice(idx, 1);
   saveRoom('or', state.or.room);
   renderOrderRoom();
+  if(supa && removed && removed._id){
+    supa.from('entries').delete()
+      .eq('room_id', roomKey('or', state.or.room.id))
+      .eq('payload->order->>_id', removed._id).then(()=>{});
+  }
+}
+
+function orderClearAll(){
+  if(!confirm('모든 주문을 초기화할까요? 되돌릴 수 없어요.')) return;
+  const r = state.or.room;
+  r.orders = [];
+  saveRoom('or', r);
+  renderOrderRoom();
+  if(supa){ supa.from('entries').delete().eq('room_id', roomKey('or', r.id)).then(()=>toast('주문을 초기화했어요')); }
+  else toast('주문을 초기화했어요');
 }
 
 function renderOrderSummary(){
@@ -8343,6 +8410,7 @@ function renderOrderSummary(){
   });
   html += `<div class="osum-line bold"><div>총합 (${r.orders.length}잔)</div><div>${total.toLocaleString()}원</div></div>`;
   html += '</div>';
+  html += `<button onclick="orderClearAll()" style="width:100%;margin-top:12px;background:none;border:1px solid var(--bad);color:var(--bad);padding:11px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">🗑 주문 전체 초기화 (다시 받기)</button>`;
   box.innerHTML = html;
 }
 
