@@ -4,25 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#ff5a36">
-<title>내주변 식당찾기 — 점심 룰렛 + 실시간 투표</title>
-<meta property="og:title" content="내주변 식당찾기 🎰">
-<meta property="og:description" content="GPS로 내 주변 전국 식당 검색 · 룰렛으로 휙휙 · 다른 PC끼리 실시간 투표로 점심 결정">
+<title>내가 정한 위치 맛집찾기 — 점심 룰렛</title>
+<meta property="og:title" content="맛집 룰렛 🎰">
+<meta property="og:description" content="내가 원하는 장소를 입력하면 그 근처 식당을 찾아 룰렛으로 휙휙 골라줍니다">
 <style>
   :root{
     --orange:#ff5a36; --orange-d:#e8441f; --ink:#191919; --gray:#8a8f99;
-    --line:#ececef; --bg:#f6f7f9; --card:#fff; --blue:#2f6bff; --green:#13b36a;
+    --line:#ececef; --bg:#f6f7f9; --card:#fff; --green:#13b36a;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
     background:var(--bg); color:var(--ink); font-size:16px; line-height:1.5;
-    max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:90px;
+    max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:40px;
   }
   header{
     position:sticky; top:0; z-index:30; background:var(--card);
-    padding:14px 16px; border-bottom:1px solid var(--line);
-    display:flex; align-items:center; gap:8px;
+    padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;
   }
   header h1{font-size:19px; margin:0; font-weight:800; letter-spacing:-.5px;}
   header .loc{font-size:13px; color:var(--gray); margin-top:2px;}
@@ -30,43 +29,38 @@
   .wrap{padding:16px;}
   .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px;}
 
+  /* search */
+  .searchbar{display:flex; gap:8px;}
+  .searchbar input{
+    flex:1; border:1.5px solid var(--line); border-radius:12px; padding:13px; font-size:16px; min-width:0;
+  }
+  .searchbar input:focus{border-color:var(--orange); outline:none;}
+  .searchbar button{
+    flex:0 0 auto; background:var(--orange); color:#fff; border:none; border-radius:12px;
+    padding:0 18px; font-size:16px; font-weight:800; cursor:pointer;
+  }
+  .ex{font-size:12.5px; color:var(--gray); margin-top:8px;}
+  .ex b{color:var(--orange); font-weight:700; cursor:pointer;}
+
   /* roulette */
-  .slot{
-    text-align:center; padding:26px 14px; border-radius:18px;
-    background:linear-gradient(135deg,#fff,#fff6f3); border:2px solid #ffd9cd;
-  }
-  .slot .name{
-    font-size:26px; font-weight:900; letter-spacing:-1px; min-height:34px;
-    transition:opacity .08s; word-break:keep-all;
-  }
+  .slot{text-align:center; padding:26px 14px; border-radius:18px; background:linear-gradient(135deg,#fff,#fff6f3); border:2px solid #ffd9cd;}
+  .slot .name{font-size:26px; font-weight:900; letter-spacing:-1px; min-height:34px; transition:opacity .08s; word-break:keep-all;}
   .slot .cat{font-size:14px; color:var(--gray); margin-top:6px; min-height:20px;}
   .slot .dist{font-size:13px; color:var(--orange); font-weight:700; margin-top:4px; min-height:18px;}
   .slot.spinning .name{color:var(--gray);}
-  .badge-new{
-    display:inline-block; background:var(--green); color:#fff; font-size:11px;
-    font-weight:800; padding:2px 7px; border-radius:20px; margin-left:6px; vertical-align:middle;
-  }
+  .badge-new{display:inline-block; background:var(--green); color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:20px; margin-left:6px; vertical-align:middle;}
 
-  .btn{
-    display:block; width:100%; border:none; border-radius:14px; padding:16px;
-    font-size:18px; font-weight:800; cursor:pointer; margin-top:12px; letter-spacing:-.3px;
-  }
+  .btn{display:block; width:100%; border:none; border-radius:14px; padding:16px; font-size:18px; font-weight:800; cursor:pointer; margin-top:12px; letter-spacing:-.3px;}
   .btn-primary{background:var(--orange); color:#fff;}
   .btn-primary:active{background:var(--orange-d);}
   .btn-sub{background:#fff; color:var(--orange); border:2px solid var(--orange);}
   .btn-ghost{background:#f0f1f4; color:var(--ink);}
   .btn-row{display:flex; gap:10px;}
-  .btn:disabled{opacity:.5; cursor:default;}
-  .btn-vote{
-    background:var(--blue); color:#fff; padding:12px 18px; font-size:16px; border-radius:12px; margin-top:0;
-  }
+  .maplink{display:block; text-align:center; margin-top:10px; font-size:14px; color:var(--orange); font-weight:700; text-decoration:none;}
 
   /* filters */
   .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 0 6px; -webkit-overflow-scrolling:touch;}
-  .chip{
-    flex:0 0 auto; border:1.5px solid var(--line); background:#fff; color:var(--ink);
-    border-radius:20px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
-  }
+  .chip{flex:0 0 auto; border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:20px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;}
   .chip.on{background:var(--ink); color:#fff; border-color:var(--ink);}
   .rad{display:flex; gap:8px; margin-top:8px;}
   .rad .chip{flex:1; text-align:center;}
@@ -76,26 +70,15 @@
 
   /* list */
   .rlist{list-style:none; margin:0; padding:0;}
-  .ritem{display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--line);}
+  .ritem{display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--line); text-decoration:none; color:inherit;}
   .ritem:last-child{border-bottom:none;}
   .ritem .info{flex:1; min-width:0;}
   .ritem .rn{font-weight:700; font-size:16px; word-break:keep-all;}
   .ritem .rc{font-size:13px; color:var(--gray);}
   .ritem .rd{color:var(--orange); font-weight:700;}
+  .ritem .go{color:var(--gray); font-size:18px;}
 
-  /* vote room */
-  .roombar{display:flex; gap:8px; align-items:center;}
-  .roombar input{flex:1; border:1.5px solid var(--line); border-radius:12px; padding:12px; font-size:16px; min-width:0;}
-  .vrow{display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--line);}
-  .vrow:last-child{border-bottom:none;}
-  .vbar-wrap{flex:1; min-width:0;}
-  .vbar-top{display:flex; justify-content:space-between; font-size:14px; font-weight:700; margin-bottom:4px;}
-  .vbar-top .vc{color:var(--blue);}
-  .vbar{height:9px; background:#eef0f4; border-radius:6px; overflow:hidden;}
-  .vbar > i{display:block; height:100%; background:var(--blue); border-radius:6px; transition:width .4s;}
-  .winner{background:#fff8e6; border:1px solid #ffe39a; border-radius:12px; padding:10px 12px; font-weight:800; text-align:center; margin-bottom:10px;}
-
-  /* settings panel */
+  /* settings */
   .panel{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:none; align-items:flex-end; justify-content:center;}
   .panel.open{display:flex;}
   .sheet{background:#fff; width:100%; max-width:520px; border-radius:20px 20px 0 0; padding:20px 18px 30px; max-height:88vh; overflow-y:auto;}
@@ -103,7 +86,7 @@
   .sheet label{display:block; font-size:14px; font-weight:700; margin:14px 0 6px;}
   .sheet input{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px; font-size:15px;}
   .sheet .hint{font-size:12.5px; color:var(--gray); margin-top:5px; line-height:1.45;}
-  .sheet a{color:var(--blue);}
+  .sheet a{color:var(--orange);}
   .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#191919; color:#fff; padding:11px 18px; border-radius:30px; font-size:14px; z-index:80; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;}
   .toast.show{opacity:.95;}
   footer{text-align:center; font-size:12px; color:var(--gray); padding:14px;}
@@ -112,26 +95,40 @@
 <body>
 <header>
   <div>
-    <h1>🎰 내주변 식당찾기</h1>
-    <div class="loc" id="locLabel">📍 위치 확인 중…</div>
+    <h1>🎰 맛집 룰렛</h1>
+    <div class="loc" id="locLabel">장소를 입력하세요</div>
   </div>
   <button class="gear" id="gearBtn" title="설정">⚙️</button>
 </header>
 
 <div class="wrap">
 
+  <!-- 장소 직접 입력 -->
+  <div class="card">
+    <div class="searchbar">
+      <input id="placeInput" placeholder="장소·건물·동네 (예: 판교역, 강남 교보타워)" autocomplete="off">
+      <button id="searchBtn">검색</button>
+    </div>
+    <div class="ex">예시 탭하면 바로 검색 →
+      <b data-q="판교역">판교역</b> ·
+      <b data-q="강남역">강남역</b> ·
+      <b data-q="여의도 IFC몰">여의도 IFC몰</b> ·
+      <b data-q="홍대입구역">홍대입구역</b>
+    </div>
+  </div>
+
   <!-- 룰렛 -->
   <div class="card">
     <div class="slot" id="slot">
-      <div class="name" id="slotName">돌리기를 눌러요</div>
+      <div class="name" id="slotName">먼저 위치를 검색해요</div>
       <div class="cat" id="slotCat"></div>
       <div class="dist" id="slotDist"></div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="spinBtn" style="flex:2">🎰 돌리기</button>
-      <button class="btn btn-sub" id="resetBtn" style="flex:1">다시</button>
+      <button class="btn btn-primary" id="spinBtn" style="flex:2" disabled>🎰 돌리기</button>
+      <button class="btn btn-sub" id="resetBtn" style="flex:1" disabled>다시</button>
     </div>
-    <button class="btn btn-vote" id="pickVoteBtn" style="width:100%;margin-top:10px;display:none">👍 이 식당에 투표</button>
+    <a class="maplink" id="mapLink" href="#" target="_blank" rel="noopener" style="display:none">🗺️ 지도·정보 보기</a>
   </div>
 
   <!-- 필터 -->
@@ -149,7 +146,6 @@
       <button class="chip" data-r="1000">1km</button>
       <button class="chip" data-r="2000">2km</button>
     </div>
-    <button class="btn btn-ghost" id="reloadBtn" style="margin-top:12px">🔄 내 주변 식당 새로고침</button>
   </div>
 
   <!-- NEW 오픈 -->
@@ -160,40 +156,22 @@
 
   <!-- 식당 목록 -->
   <div class="card">
-    <div class="sec-title">🍜 내 주변 식당 <span class="muted" id="listCount"></span></div>
-    <ul class="rlist" id="list"><li class="muted" style="padding:14px 4px">위치를 불러오는 중…</li></ul>
-  </div>
-
-  <!-- 실시간 투표 -->
-  <div class="card">
-    <div class="sec-title">🗳️ 실시간 투표 — 다 같이 점심 정하기</div>
-    <div class="muted" style="margin-bottom:10px">방 이름을 정해 공유하면 <b>다른 컴퓨터·폰</b>에서 누른 표가 실시간으로 모여요.</div>
-    <div class="roombar">
-      <input id="roomInput" placeholder="방 이름 (예: 영업3팀점심)" maxlength="24" autocomplete="off">
-      <button class="btn btn-vote" id="joinBtn">입장</button>
-    </div>
-    <div id="roomActive" style="display:none;margin-top:14px">
-      <div class="muted" style="margin-bottom:8px">방 <b id="roomName"></b> · <span id="liveDot">🟢</span>
-        <button id="shareBtn" style="background:none;border:none;color:var(--blue);font-weight:700;cursor:pointer;font-size:14px">🔗 링크복사</button>
-      </div>
-      <div id="winnerBox" class="winner" style="display:none"></div>
-      <div id="voteList"><div class="muted">아직 표가 없어요. 위 룰렛/목록에서 식당에 투표해보세요.</div></div>
-      <button class="btn btn-ghost" id="leaveBtn" style="margin-top:12px">방 나가기</button>
-    </div>
+    <div class="sec-title">🍜 이 근처 식당 <span class="muted" id="listCount"></span></div>
+    <ul class="rlist" id="list"><li class="muted" style="padding:14px 4px">위 검색창에 가고 싶은 장소를 입력해보세요.</li></ul>
   </div>
 
 </div>
 
-<!-- 설정 시트 -->
+<!-- 설정 -->
 <div class="panel" id="panel">
   <div class="sheet">
     <h3>⚙️ 설정 (선택)</h3>
-    <div class="hint">키 없이도 OpenStreetMap으로 바로 작동해요. 아래 무료 키를 넣으면 <b>전국 식당 정확도</b>가 카카오 수준으로 올라갑니다.</div>
+    <div class="hint">키 없이도 OpenStreetMap으로 바로 작동해요. 아래 무료 카카오 키를 넣으면 <b>장소 검색·식당 정확도</b>가 크게 올라갑니다.</div>
     <label>카카오 REST API 키 <span class="muted">(무료)</span></label>
     <input id="kakaoKey" placeholder="REST API 키 문자열" autocomplete="off">
     <div class="hint">
-      발급: <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 내 애플리케이션 만들기 → <b>앱 키 &gt; REST API 키</b> 복사 → 여기 붙여넣기.<br>
-      ⚠️ 카카오 콘솔 → 플랫폼 → Web 사이트도메인에 <b id="originHint"></b> 도 등록해야 작동해요.
+      발급: <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 내 애플리케이션 → <b>앱 키 &gt; REST API 키</b> 복사 → 붙여넣기.<br>
+      ⚠️ 콘솔 → 플랫폼 → Web 사이트도메인에 <b id="originHint"></b> 도 등록해야 작동해요.
     </div>
     <button class="btn btn-primary" id="saveKeyBtn" style="margin-top:18px">저장</button>
     <button class="btn btn-ghost" id="closePanelBtn" style="margin-top:8px">닫기</button>
@@ -201,19 +179,16 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<footer>비용 0원 · 광고 없음 · GPS는 식당 검색에만 쓰고 저장하지 않아요</footer>
+<footer>비용 0원 · 광고 없음 · 입력한 장소 주변의 식당만 찾아줍니다</footer>
 
 <script>
 "use strict";
 /* ===================== 상태 ===================== */
 const S = {
-  pos:null, region:"내 주변", cat:"all", radius:500,
+  pos:null, placeName:"", cat:"all", radius:500,
   list:[], picked:null,
   kakao: localStorage.getItem('npf_kakao') || "",
-  clientId: localStorage.getItem('npf_cid') || (Math.random().toString(36).slice(2)+Date.now().toString(36)),
-  room:null, topic:null, es:null, votes:{},
 };
-localStorage.setItem('npf_cid', S.clientId);
 
 /* ===================== 유틸 ===================== */
 const $ = id => document.getElementById(id);
@@ -231,53 +206,56 @@ const KAKAO_CAT = { korean:"한식", chinese:"중식", japanese:"일식", wester
 const OSM_CUISINE = { korean:["korean"], chinese:["chinese"], japanese:["japanese","sushi","ramen"],
   western:["italian","pizza","burger","american","chicken","steak_house"], cafe:["cafe","coffee_shop","bakery","dessert"] };
 
-/* ===================== 위치 ===================== */
-function getLocation(){
-  if(!navigator.geolocation){ $("locLabel").textContent="📍 이 브라우저는 위치 미지원 (서울시청 기준)"; useDefaultSpot(); return; }
-  $("locLabel").textContent="📍 위치 확인 중…";
-  navigator.geolocation.getCurrentPosition(
-    p=>{ S.pos={lat:p.coords.latitude,lng:p.coords.longitude}; reverseGeocode(); loadRestaurants(); },
-    ()=>{ $("locLabel").textContent="📍 위치 권한 꺼짐 (서울시청 기준)"; useDefaultSpot(); },
-    {enableHighAccuracy:true, timeout:9000, maximumAge:60000}
-  );
-}
-function useDefaultSpot(){ S.pos={lat:37.5663,lng:126.9779}; loadRestaurants(); }
-
-async function reverseGeocode(){
-  try{
-    if(S.kakao){
-      const r=await fetch(`https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${S.pos.lng}&y=${S.pos.lat}`,
+/* ===================== 장소 검색(지오코딩) ===================== */
+async function geocodePlace(q){
+  if(S.kakao){
+    try{
+      const r=await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=1`,
         {headers:{Authorization:"KakaoAK "+S.kakao}});
-      const j=await r.json();
-      const d=(j.documents||[]).find(x=>x.region_type==="H")||(j.documents||[])[0];
-      if(d) S.region=`${d.region_2depth_name} ${d.region_3depth_name}`.trim();
-    } else {
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${S.pos.lat}&lon=${S.pos.lng}&format=json&accept-language=ko&zoom=16`);
-      const j=await r.json(); const a=j.address||{};
-      S.region=[a.borough||a.city_district||a.county||a.city, a.suburb||a.neighbourhood||a.quarter].filter(Boolean).join(" ")||"내 주변";
-    }
-  }catch(e){ S.region="내 주변"; }
-  $("locLabel").textContent="📍 "+S.region;
+      if(r.ok){ const j=await r.json(); const d=(j.documents||[])[0];
+        if(d) return {lat:+d.y, lng:+d.x, name:d.place_name+(d.road_address_name?` · ${d.road_address_name}`:"")}; }
+    }catch(e){}
+  }
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=kr&limit=1&accept-language=ko`);
+  const j=await r.json();
+  if(j&&j[0]) return {lat:+j[0].lat, lng:+j[0].lon, name:(j[0].display_name||q).split(",").slice(0,3).join(", ")};
+  return null;
+}
+async function doSearch(q){
+  q=(q!=null?q:$("placeInput").value).trim();
+  if(!q){ toast("가고 싶은 장소를 입력하세요"); $("placeInput").focus(); return; }
+  $("placeInput").value=q;
+  $("locLabel").textContent="🔎 '"+q+"' 찾는 중…";
+  let g=null; try{ g=await geocodePlace(q); }catch(e){}
+  if(!g){ $("locLabel").textContent="❌ '"+q+"' 못 찾음"; toast("다른 키워드로 검색해보세요 (예: 역 이름)"); return; }
+  S.pos={lat:g.lat,lng:g.lng}; S.placeName=g.name;
+  localStorage.setItem('npf_place', q);
+  $("locLabel").textContent="📍 "+g.name;
+  loadRestaurants();
 }
 
 /* ===================== 식당 불러오기 ===================== */
 async function loadRestaurants(){
   $("list").innerHTML='<li class="muted" style="padding:14px 4px">불러오는 중…</li>';
+  $("spinBtn").disabled=true; $("resetBtn").disabled=true;
   try{ S.list = S.kakao ? await fetchKakao() : await fetchOSM(); }
   catch(e){ try{ S.list = await fetchOSM(); }catch(e2){ S.list=[]; } }
   S.list.sort((a,b)=>a.dist-b.dist);
-  renderList(); renderNew(); pickRoulette(true);
+  renderList(); renderNew();
+  const has=S.list.length>0;
+  $("spinBtn").disabled=!has; $("resetBtn").disabled=!has;
+  if(has) pickRoulette(true);
+  else { $("slotName").textContent="이 근처에 식당이 없어요"; $("slotCat").textContent=""; $("slotDist").textContent=""; $("mapLink").style.display="none"; }
 }
 
 async function fetchKakao(){
   let docs=[];
   for(const code of ["FD6","CE7"]){
-    for(let page=1; page<=2; page++){
+    for(let page=1; page<=3; page++){ // 카카오 최대 3페이지(45개)까지 다 긁기
       const u=`https://dapi.kakao.com/v2/local/search/category.json?category_group_code=${code}&x=${S.pos.lng}&y=${S.pos.lat}&radius=${S.radius}&sort=distance&size=15&page=${page}`;
       const r=await fetch(u,{headers:{Authorization:"KakaoAK "+S.kakao}});
       if(!r.ok) throw new Error("kakao "+r.status);
-      const j=await r.json();
-      docs=docs.concat(j.documents||[]);
+      const j=await r.json(); docs=docs.concat(j.documents||[]);
       if(j.meta && j.meta.is_end) break;
     }
   }
@@ -291,7 +269,7 @@ async function fetchKakao(){
 
 async function fetchOSM(){
   const r=S.radius;
-  const q=`[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng}););out body 80;`;
+  const q=`[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng});way["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng}););out center 300;`;
   const mirrors=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
   let j=null, lastErr;
   for(const m of mirrors){
@@ -303,18 +281,19 @@ async function fetchOSM(){
   let out=(j.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>{
     const t=e.tags, open=t.start_date||t.opening_date; let isNew=false;
     if(open){ const y=parseInt(String(open).slice(0,4)); if(!isNaN(y)&&y>=nowY-1) isNew=true; }
-    return { name:t.name, cat:cuisineKo(t.cuisine,t.amenity), lat:e.lat, lng:e.lon,
-      dist:dist(S.pos.lat,S.pos.lng,e.lat,e.lon), isNew,
-      url:`https://www.openstreetmap.org/node/${e.id}`, cuisine:t.cuisine||"" };
-  });
+    const la=(e.lat!=null?e.lat:(e.center&&e.center.lat)), ln=(e.lon!=null?e.lon:(e.center&&e.center.lon));
+    if(la==null||ln==null) return null;
+    return { name:t.name, cat:cuisineKo(t.cuisine,t.amenity), lat:la, lng:ln,
+      dist:dist(S.pos.lat,S.pos.lng,la,ln), isNew,
+      url:`https://www.openstreetmap.org/${e.type}/${e.id}`, cuisine:t.cuisine||"" };
+  }).filter(Boolean);
   return filterCat(dedupe(out), false);
 }
 function cuisineKo(c,amenity){
   if(amenity==="cafe") return "카페";
   if(!c) return amenity==="fast_food"?"패스트푸드":"음식점";
   const map={korean:"한식",chinese:"중식",japanese:"일식",sushi:"일식",ramen:"일식",italian:"양식",pizza:"피자",burger:"버거",american:"양식",chicken:"치킨",coffee_shop:"카페",cafe:"카페",bakery:"베이커리",thai:"태국",indian:"인도",vietnamese:"베트남"};
-  const first=String(c).split(";")[0];
-  return map[first]||first;
+  const first=String(c).split(";")[0]; return map[first]||first;
 }
 function dedupe(arr){
   const seen=new Set(); return arr.filter(x=>{ const k=x.name+"@"+Math.round(x.lat*1e4)+","+Math.round(x.lng*1e4); if(seen.has(k))return false; seen.add(k); return true; });
@@ -335,36 +314,31 @@ function matchKoCat(catKo,key){
 
 /* ===================== 렌더 ===================== */
 function itemRow(r){
-  const li=document.createElement("li"); li.className="ritem";
-  const info=document.createElement("div"); info.className="info";
-  info.innerHTML=`<div class="rn">${esc(r.name)} ${r.isNew?'<span class="badge-new">NEW</span>':''}</div>
-    <div class="rc">${esc(r.cat||"음식점")} · <span class="rd">${fmtDist(r.dist)}</span></div>`;
-  const vb=document.createElement("button"); vb.className="btn btn-vote"; vb.textContent="👍";
-  vb.onclick=()=>castVote(r.name);
-  li.appendChild(info); li.appendChild(vb);
-  return li;
+  const a=document.createElement("a"); a.className="ritem"; a.href=r.url||"#"; a.target="_blank"; a.rel="noopener";
+  a.innerHTML=`<div class="info">
+      <div class="rn">${esc(r.name)} ${r.isNew?'<span class="badge-new">NEW</span>':''}</div>
+      <div class="rc">${esc(r.cat||"음식점")} · <span class="rd">${fmtDist(r.dist)}</span></div>
+    </div><span class="go">›</span>`;
+  return a;
 }
 function renderList(){
   const ul=$("list"); ul.innerHTML="";
   $("listCount").textContent = S.list.length? `(${S.list.length}곳)` : "";
-  if(!S.list.length){ ul.innerHTML='<li class="muted" style="padding:14px 4px">주변에 식당이 없어요. 반경을 넓혀보세요.</li>'; return; }
-  S.list.slice(0,40).forEach(r=>ul.appendChild(itemRow(r)));
+  if(!S.list.length){ ul.innerHTML='<li class="muted" style="padding:14px 4px">이 근처엔 식당이 없어요. 반경을 넓혀보세요.</li>'; return; }
+  S.list.forEach(r=>ul.appendChild(itemRow(r))); // 전 식당 다 표시 (제한 없음)
 }
 function renderNew(){
   const news=S.list.filter(r=>r.isNew).slice(0,8);
   if(!news.length){ $("newCard").style.display="none"; return; }
   $("newCard").style.display="block";
-  const ul=$("newList"); ul.innerHTML="";
-  news.forEach(r=>ul.appendChild(itemRow(r)));
+  const ul=$("newList"); ul.innerHTML=""; news.forEach(r=>ul.appendChild(itemRow(r)));
 }
 
 /* ===================== 룰렛 ===================== */
 let spinTimer=null;
 function pickRoulette(silent){
-  if(!S.list.length){ $("slotName").textContent="주변 식당이 없어요"; $("slotCat").textContent=""; $("slotDist").textContent=""; $("pickVoteBtn").style.display="none"; return; }
-  if(spinTimer) return;
-  const slot=$("slot"); slot.classList.add("spinning");
-  $("pickVoteBtn").style.display="none";
+  if(!S.list.length || spinTimer) return;
+  const slot=$("slot"); slot.classList.add("spinning"); $("mapLink").style.display="none";
   let n = silent? 1 : 16, i=0, delay=55;
   const step=()=>{
     const r=S.list[Math.floor(Math.random()*S.list.length)];
@@ -380,90 +354,23 @@ function showPicked(r){
   $("slotName").innerHTML=esc(r.name)+(r.isNew?' <span class="badge-new">NEW</span>':'');
   $("slotCat").textContent=r.cat||"음식점";
   $("slotDist").textContent="여기서 "+fmtDist(r.dist);
-  const b=$("pickVoteBtn"); b.style.display="block"; b.textContent=`👍 '${r.name}'에 투표`;
+  const m=$("mapLink"); if(r.url){ m.href=r.url; m.style.display="block"; } else m.style.display="none";
 }
-
-/* ===================== 실시간 투표 (ntfy.sh) ===================== */
-function joinRoom(name){
-  name=(name||"").trim(); if(!name){ toast("방 이름을 입력하세요"); return; }
-  S.room=name;
-  S.topic="npflunch_"+name.replace(/[^a-zA-Z0-9]/g,"").slice(0,32)+"_"+hash(name); // ntfy 토픽은 ASCII만 → 한글은 hash로 구분
-  S.votes={};
-  $("roomName").textContent=name;
-  $("roomActive").style.display="block"; $("roomInput").value=name;
-  history.replaceState(null,"","#room="+encodeURIComponent(name));
-  fetch(`https://ntfy.sh/${S.topic}/json?since=12h&poll=1`).then(r=>r.text()).then(txt=>{
-    txt.trim().split("\n").filter(Boolean).forEach(line=>{ try{ handleVoteMsg(JSON.parse(line)); }catch(e){} });
-    renderVotes();
-  }).catch(()=>{});
-  if(S.es) S.es.close();
-  S.es=new EventSource(`https://ntfy.sh/${S.topic}/sse`);
-  S.es.onmessage=ev=>{ try{ handleVoteMsg(JSON.parse(ev.data)); renderVotes(); }catch(e){} };
-  S.es.onerror=()=>{ $("liveDot").textContent="🟡"; };
-  S.es.onopen=()=>{ $("liveDot").textContent="🟢"; };
-  toast("방 입장! 링크를 공유하세요");
-}
-function handleVoteMsg(envelope){
-  let p; try{ p=JSON.parse(envelope.message); }catch(e){ return; }
-  if(!p || p.t!=="v" || !p.place || !p.who) return;
-  S.votes[p.who]=p.place;
-}
-function castVote(place){
-  if(!S.room){ toast("먼저 투표방에 입장하세요"); $("roomInput").focus(); return; }
-  const payload={t:"v", place, who:S.clientId, ts:Date.now()};
-  S.votes[S.clientId]=place; renderVotes();
-  // ntfy 루트 JSON 발행: 본문이 첨부파일로 처리되는 문제 회피 → message 필드에 페이로드
-  fetch("https://ntfy.sh/",{method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({topic:S.topic, message:JSON.stringify(payload)})}).catch(()=>toast("전송 실패, 인터넷 확인"));
-  toast(`'${place}'에 투표했어요`);
-}
-function renderVotes(){
-  const tally={}; Object.values(S.votes).forEach(p=>tally[p]=(tally[p]||0)+1);
-  const arr=Object.entries(tally).sort((a,b)=>b[1]-a[1]);
-  const total=Object.keys(S.votes).length;
-  const box=$("voteList");
-  if(!arr.length){ box.innerHTML='<div class="muted">아직 표가 없어요. 위 룰렛/목록에서 식당에 투표해보세요.</div>'; $("winnerBox").style.display="none"; return; }
-  const max=arr[0][1];
-  if(total>=2){
-    const tops=arr.filter(x=>x[1]===max);
-    $("winnerBox").style.display="block";
-    $("winnerBox").innerHTML = tops.length>1 ? `🤝 공동 1위: ${tops.map(t=>esc(t[0])).join(", ")}` : `🏆 1위: ${esc(arr[0][0])} (${max}표)`;
-  } else $("winnerBox").style.display="none";
-  box.innerHTML=arr.map(([p,c])=>`
-    <div class="vrow"><div class="vbar-wrap">
-      <div class="vbar-top"><span>${esc(p)}</span><span class="vc">${c}표</span></div>
-      <div class="vbar"><i style="width:${Math.round(c/max*100)}%"></i></div>
-    </div></div>`).join("");
-}
-function leaveRoom(){
-  if(S.es) S.es.close(); S.es=null; S.room=null; S.topic=null; S.votes={};
-  $("roomActive").style.display="none"; history.replaceState(null,"","#");
-}
-function hash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return h.toString(36); }
 
 /* ===================== 이벤트 ===================== */
+$("searchBtn").onclick=()=>doSearch();
+$("placeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") doSearch(); });
+document.querySelector(".ex").addEventListener("click",e=>{ const b=e.target.closest("b[data-q]"); if(b) doSearch(b.dataset.q); });
+
 $("spinBtn").onclick=()=>pickRoulette(false);
 $("resetBtn").onclick=()=>{ S.picked=null; pickRoulette(false); };
-$("reloadBtn").onclick=loadRestaurants;
-$("pickVoteBtn").onclick=()=>{ if(S.picked) castVote(S.picked.name); };
 
 $("catChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return;
   [...$("catChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on");
-  S.cat=b.dataset.cat; loadRestaurants(); };
+  S.cat=b.dataset.cat; if(S.pos) loadRestaurants(); };
 $("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return;
   [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on");
-  S.radius=+b.dataset.r; loadRestaurants(); };
-
-$("joinBtn").onclick=()=>joinRoom($("roomInput").value);
-$("roomInput").addEventListener("keydown",e=>{ if(e.key==="Enter") joinRoom($("roomInput").value); });
-$("leaveBtn").onclick=leaveRoom;
-$("shareBtn").onclick=async()=>{
-  const url=location.origin+location.pathname+"#room="+encodeURIComponent(S.room);
-  try{
-    if(navigator.share){ await navigator.share({title:"점심 투표 같이해요", text:`'${S.room}' 방에서 점심 식당 투표!`, url}); }
-    else { await navigator.clipboard.writeText(url); toast("링크 복사됨! 단톡방에 붙여넣기"); }
-  }catch(e){ try{ await navigator.clipboard.writeText(url); toast("링크 복사됨!"); }catch(_){ prompt("이 링크 공유:",url);} }
-};
+  S.radius=+b.dataset.r; if(S.pos) loadRestaurants(); };
 
 $("gearBtn").onclick=()=>{ $("kakaoKey").value=S.kakao; $("originHint").textContent=location.origin; $("panel").classList.add("open"); };
 $("closePanelBtn").onclick=()=>$("panel").classList.remove("open");
@@ -471,14 +378,14 @@ $("panel").onclick=e=>{ if(e.target===$("panel")) $("panel").classList.remove("o
 $("saveKeyBtn").onclick=()=>{
   S.kakao=$("kakaoKey").value.trim(); localStorage.setItem('npf_kakao',S.kakao);
   $("panel").classList.remove("open"); toast(S.kakao?"카카오 키 저장됨":"키 삭제됨");
-  reverseGeocode(); loadRestaurants();
+  if(S.placeName) doSearch(localStorage.getItem('npf_place')||"");
 };
 
 /* ===================== 시작 ===================== */
 (function init(){
-  const m=location.hash.match(/room=([^&]+)/);
-  if(m){ const rn=decodeURIComponent(m[1]); $("roomInput").value=rn; setTimeout(()=>joinRoom(rn),300); }
-  getLocation();
+  const last=localStorage.getItem('npf_place');
+  if(last){ $("placeInput").value=last; doSearch(last); }
+  else $("placeInput").focus();
 })();
 </script>
 </body>
