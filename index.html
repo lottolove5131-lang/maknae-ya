@@ -387,7 +387,7 @@ function showPicked(r){
 function joinRoom(name){
   name=(name||"").trim(); if(!name){ toast("방 이름을 입력하세요"); return; }
   S.room=name;
-  S.topic="npflunch_"+name.replace(/[^a-zA-Z0-9가-힣]/g,"").slice(0,40)+"_"+hash(name);
+  S.topic="npflunch_"+name.replace(/[^a-zA-Z0-9]/g,"").slice(0,32)+"_"+hash(name); // ntfy 토픽은 ASCII만 → 한글은 hash로 구분
   S.votes={};
   $("roomName").textContent=name;
   $("roomActive").style.display="block"; $("roomInput").value=name;
@@ -410,9 +410,11 @@ function handleVoteMsg(envelope){
 }
 function castVote(place){
   if(!S.room){ toast("먼저 투표방에 입장하세요"); $("roomInput").focus(); return; }
-  const payload=JSON.stringify({t:"v", place, who:S.clientId, ts:Date.now()});
+  const payload={t:"v", place, who:S.clientId, ts:Date.now()};
   S.votes[S.clientId]=place; renderVotes();
-  fetch(`https://ntfy.sh/${S.topic}`,{method:"POST", body:payload}).catch(()=>toast("전송 실패, 인터넷 확인"));
+  // ntfy 루트 JSON 발행: 본문이 첨부파일로 처리되는 문제 회피 → message 필드에 페이로드
+  fetch("https://ntfy.sh/",{method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({topic:S.topic, message:JSON.stringify(payload)})}).catch(()=>toast("전송 실패, 인터넷 확인"));
   toast(`'${place}'에 투표했어요`);
 }
 function renderVotes(){
