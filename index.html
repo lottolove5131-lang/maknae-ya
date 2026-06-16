@@ -428,7 +428,7 @@ async function loadRestaurants(){
     // 카테고리 = 네이버(분류 정확) 우선, 부족하면 지도
     let naver=[]; try{ naver=await fetchNaver(); }catch(e){}
     if(seq!==S.reqSeq) return;
-    naver=ensureCat(naver);
+    // 네이버 "○○ 맛집" 쿼리 자체가 카테고리 위주라 추가 필터 안 함(과필터 방지)
     if(naver.length>=3){ list=naver; source="naver"; }
     else{ setLoadText("🔎 지도에서 더 찾는 중…"); try{ list=await fetchOSM(); }catch(e){ list=[]; err=true; } if(seq!==S.reqSeq) return; source="geo"; }
   }
