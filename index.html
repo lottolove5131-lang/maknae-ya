@@ -307,8 +307,10 @@ function parseNaver(md){
     const revStr=(blk.match(/리뷰\s*([\d,]+)/)||[])[1]||"";
     const open=(blk.match(/영업\s*(중|전|종료)/)||[])[1]||"";
     const addr=(blk.match(/(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)[^\]]{0,18}?(동|읍|면)/)||[])[0]||"";
+    const ims=[...blk.matchAll(/!\[[^\]]*\]\((https:\/\/[^)]*pstatic\.net[^)]*)\)/g)].map(x=>x[1]);
+    const photo=ims.find(u=>!/\/assets\/|banner|icon_default|shared\/images|profile/.test(u))||"";
     return { name, cat, reviews:revStr, reviewsNum:+revStr.replace(/,/g,"")||0,
-      isNew:/새로오픈/.test(blk), revisit:/재방문 많은/.test(blk), open, addr, dist:null, phone:"",
+      isNew:/새로오픈/.test(blk), revisit:/재방문 많은/.test(blk), open, addr, dist:null, phone:"", photo,
       naverHome:`https://m.place.naver.com/restaurant/${c.id}/home`,
       naverMenu:`https://m.place.naver.com/restaurant/${c.id}/menu/list`, kakaoUrl:"" };
   }).filter(x=>x.name && x.name.length>=2 && !NV_AD.test(x.name));
