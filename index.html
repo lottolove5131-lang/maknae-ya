@@ -412,32 +412,31 @@ function mergeReviews(base, naver){ // 지도 전체식당(base) + 네이버 리
   nv2.forEach(x=>{ if(!used.has(x.k)) merged.push({...x.nv, dist:null}); }); // 지도에 없는 네이버 식당도 추가
   return merged;
 }
+function showResults(list, source, seq){ // 즉시 렌더(0.5s 멈춤 제거)
+  if(seq!==S.reqSeq) return;
+  S.source=source; S.list=list; S.lastError=false;
+  S.sort=(source==="geo")?"dist":"review";
+  applySort(); updateSortOptions(); renderList(); renderNew();
+}
 async function loadRestaurants(){
   const seq=++S.reqSeq;                 // 요청 순번 — 늦게 온 응답이 화면 덮는 것 방지
   startLoading();
   S.radius=SCOPE_M[S.scope]||500;
-  let list=[], source="merge", err=false;
   if(S.cat==="all"){
-    // 전체 = 지도기반 모든 식당 + 네이버 리뷰 병합
-    const [base,naver]=await Promise.all([ fetchOSM().catch(()=>[]), fetchNaver().catch(()=>[]) ]);
-    if(seq!==S.reqSeq) return;
-    if(base.length){ list=mergeReviews(base,naver); source="merge"; }
-    else if(naver.length){ list=naver; source="naver"; }
-    else { list=[]; err=true; }
+    // 네이버 먼저 빠르게(~1s) 표시 → 지도(모든 식당) 오면 합쳐서 갱신 (체감속도↑)
+    const naverP=fetchNaver().catch(()=>[]), osmP=fetchOSM().catch(()=>[]);
+    const naver=await naverP; if(seq!==S.reqSeq) return;
+    if(naver.length) showResults(naver,"naver");                    // 1차 빠른 표시
+    const base=await osmP; if(seq!==S.reqSeq) return;
+    if(base.length) showResults(mergeReviews(base,naver),"merge");  // 2차 모든 식당 합침
+    else if(!naver.length){ S.list=[]; S.lastError=true; S.source="merge"; renderList(); renderNew(); }
   } else {
-    // 카테고리 = 네이버(분류 정확) 우선, 부족하면 지도
     let naver=[]; try{ naver=await fetchNaver(); }catch(e){}
     if(seq!==S.reqSeq) return;
-    // 네이버 "○○ 맛집" 쿼리 자체가 카테고리 위주라 추가 필터 안 함(과필터 방지)
-    if(naver.length>=3){ list=naver; source="naver"; }
-    else{ setLoadText("🔎 지도에서 더 찾는 중…"); try{ list=await fetchOSM(); }catch(e){ list=[]; err=true; } if(seq!==S.reqSeq) return; source="geo"; }
+    if(naver.length>=3) showResults(naver,"naver");
+    else{ setLoadText("🔎 지도에서 더 찾는 중…"); let g=[]; try{ g=await fetchOSM(); }catch(e){} if(seq!==S.reqSeq) return;
+      if(g.length) showResults(g,"geo"); else { S.list=[]; S.lastError=true; S.source="naver"; renderList(); renderNew(); } }
   }
-  S.source=source; S.list=list; S.lastError=(!list.length&&err);
-  S.sort=(source==="geo")?"dist":"review"; // 기본 정렬
-  applySort(); updateSortOptions();
-  await finishLoading(list.length);
-  if(seq!==S.reqSeq) return;
-  renderList(); renderNew();
 }
 function applySort(){
   const by=S.sort;
@@ -455,8 +454,11 @@ function updateSortOptions(){
   sel.value=S.sort;
 }
 const naverCache={}, osmCache={};
+function pcGet(k){ try{ const v=JSON.parse(localStorage.getItem("npfc_"+k)||"null"); if(v&&Date.now()-v.t<864e5) return v.d; }catch(e){} return null; } // 1일 TTL
+function pcSet(k,d){ try{ localStorage.setItem("npfc_"+k, JSON.stringify({t:Date.now(),d})); }catch(e){ try{ Object.keys(localStorage).filter(x=>x.startsWith("npfc_")).slice(0,20).forEach(x=>localStorage.removeItem(x)); localStorage.setItem("npfc_"+k, JSON.stringify({t:Date.now(),d})); }catch(e2){} } }
 async function fetchNaverQ(query){
   if(naverCache[query]) return naverCache[query];
+  const pc=pcGet("nv_"+query); if(pc){ naverCache[query]=pc; return pc; }
   const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
   const proxies=[ "https://r.jina.ai/"+target, "https://api.allorigins.win/raw?url="+encodeURIComponent(target) ];
   let md=null;
@@ -469,7 +471,7 @@ async function fetchNaverQ(query){
   }
   if(!md) return [];
   const out=parseNaver(md);
-  if(out.length>=3) naverCache[query]=out;
+  if(out.length>=3){ naverCache[query]=out; pcSet("nv_"+query,out); }
   return out;
 }
 async function fetchNaver(){
@@ -534,6 +536,7 @@ async function fetchOSM(){
   const q=`[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng});way["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng}););out center 400;`;
   const ckey=`${S.pos.lat.toFixed(4)},${S.pos.lng.toFixed(4)},${r}`;
   if(osmCache[ckey]) return filterCat(osmCache[ckey], false);
+  const pcO=pcGet("osm_"+ckey); if(pcO){ osmCache[ckey]=pcO; return filterCat(pcO, false); }
   // 4AI 권장: rate-limit 없는 엔드포인트 우선(maps.mail.ru/VK 실측 287곳) + 폴백
   const mirrors=["https://maps.mail.ru/osm/tools/overpass/api/interpreter","https://overpass.private.coffee/api/interpreter","https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
   let j=null,lastErr;
@@ -553,7 +556,7 @@ async function fetchOSM(){
     return { name:t.name, cat:cuisineKo(t.cuisine,t.amenity), lat:la, lng:ln, dist:dist(S.pos.lat,S.pos.lng,la,ln),
       phone:t.phone||t["contact:phone"]||"", addr:"", hours:t.opening_hours||"", kakaoUrl:"", isNew, cuisine:t.cuisine||"" };
   }).filter(Boolean);
-  const ded=dedupe(out); osmCache[ckey]=ded;
+  const ded=dedupe(out); osmCache[ckey]=ded; pcSet("osm_"+ckey,ded);
   return filterCat(ded, false);
 }
 function cuisineKo(c,amenity){
