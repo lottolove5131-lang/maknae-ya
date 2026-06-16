@@ -40,6 +40,8 @@
 
   .wrap{padding:16px 16px 0;}
   .card{background:var(--card); border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  /* 필터바: 스크롤해도 고정 → 카테고리 전환이 항상 보임 */
+  #filterCard{position:sticky; top:56px; z-index:20; padding:12px 16px;}
 
   /* ===== Hero CTA ===== */
   .hero-cta{
@@ -229,7 +231,7 @@
 
   <!-- NEW 오픈 -->
   <div class="card" id="newCard" style="display:none">
-    <div class="sec-title">🆕 새로 생긴 식당</div>
+    <div class="sec-title">🆕 요즘 새로 생긴 곳</div>
     <ul class="rlist" id="newList"></ul>
   </div>
 
@@ -280,11 +282,11 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<footer>비용 0원 · 광고 없음<br>입력한 장소 주변 식당만 찾아줍니다</footer>
+<footer>비용 0원 · 광고 없음<br>검색한 장소 주변만 보여줘요 · 별점은 네이버에 없어서 리뷰 수로 보여줘요</footer>
 
 <script>
 "use strict";
-const S = { pos:null, placeName:"", placeShort:"", area:"", area2:"", scope:"near", cat:"all", radius:500, list:[], kakao: localStorage.getItem('npf_kakao')||"" };
+const S = { pos:null, placeName:"", placeShort:"", area:"", area2:"", scope:"near", cat:"all", radius:500, list:[], source:"", reqSeq:0, lastError:false, kakao: localStorage.getItem('npf_kakao')||"" };
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
 function dist(a,b,c,d){ const R=6371000,toR=x=>x*Math.PI/180; const dLat=toR(c-a),dLng=toR(d-b);
@@ -362,10 +364,11 @@ const CAT_WORD={all:"맛집",korean:"한식",chinese:"중식",japanese:"일식",
 let _ltTimer=null;
 function startLoading(){
   clearInterval(_ltTimer);
+  const ct=(S.cat==="all"?"맛집":((CAT_KO&&CAT_KO[S.cat])||"맛집"));
   $("listCount").textContent="찾는 중…";
-  $("list").innerHTML=`<li><div class="loadwrap"><div class="loadtext" id="loadText">🔍 이 근처 식당 찾는 중…</div><div class="loadbar" id="loadBar"><i></i></div></div></li>`+
+  $("list").innerHTML=`<li><div class="loadwrap"><div class="loadtext" id="loadText">🔍 이 근처 ${ct} 찾는 중…</div><div class="loadbar" id="loadBar"><i></i></div></div></li>`+
     Array(3).fill('<li class="skel-li"><div class="skel-box skel-th"></div><div class="skel-lines"><div class="skel-box skel-l1"></div><div class="skel-box skel-l2"></div><div class="skel-box skel-l3"></div></div></li>').join("");
-  const steps=["🔍 이 근처 식당 찾는 중…","🍜 맛집 모으는 중…","⭐ 리뷰 정리하는 중…"];
+  const steps=[`🔍 이 근처 ${ct} 찾는 중…`,"🍜 맛집 모으는 중…","⭐ 리뷰 정리하는 중…"];
   let i=0; _ltTimer=setInterval(()=>{ i=(i+1)%steps.length; const el=$("loadText"); if(el) el.textContent=steps[i]; }, 700);
 }
 function setLoadText(t){ const el=$("loadText"); if(el) el.textContent=t; }
@@ -376,22 +379,32 @@ function finishLoading(n){
   if(el) el.innerHTML=`<span class="loaddone">✅ 다 찾았어요</span> <span class="lt-sub">· ${n}곳</span>`;
   return new Promise(r=>setTimeout(r,500)); // 「다 찾음」 잠깐 보여주고 리스트로
 }
+function ensureCat(list){ // 네이버 결과에 카테고리 안전망(과필터 방지: 3건 미만이면 원본)
+  if(S.cat==="all") return list;
+  const strong=list.filter(r=>matchKoCat(r.cat||"",S.cat));
+  return strong.length>=3?strong:list;
+}
 async function loadRestaurants(){
+  const seq=++S.reqSeq;                 // 요청 순번 — 늦게 온 응답이 화면 덮는 것 방지
   startLoading();
-  S.source="naver";
-  let list=[];
+  let list=[], source="naver", err=false;
   try{ list=await fetchNaver(); }catch(e){ list=[]; }
-  if(list.length>=3){
-    list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0)); // 리뷰 많은 순(인기순)
-    S.list=list; await finishLoading(list.length); renderList(); renderNew(); return;
+  if(seq!==S.reqSeq) return;            // ← 카테고리 빠르게 바꿔도 stale 응답 폐기
+  list=ensureCat(list);
+  if(list.length>=3){ source="naver"; }
+  else{                                 // 폴백: 카카오/OSM (리뷰 없음, 거리순)
+    setLoadText("🔎 다른 곳에서 더 찾는 중…");
+    try{ list = S.kakao ? await fetchKakao() : await fetchOSM(); }
+    catch(e){ try{ list=await fetchOSM(); }catch(e2){ list=[]; err=true; } }
+    if(seq!==S.reqSeq) return;
+    source="geo";
   }
-  // 폴백: 카카오/OSM (리뷰 없음, 거리순)
-  setLoadText("🔎 다른 곳에서 더 찾는 중…");
-  S.source="geo";
-  try{ S.list = S.kakao ? await fetchKakao() : await fetchOSM(); }
-  catch(e){ try{ S.list=await fetchOSM(); }catch(e2){ S.list=[]; } }
-  S.list.sort((a,b)=>a.dist-b.dist);
-  await finishLoading(S.list.length); renderList(); renderNew();
+  if(source==="naver") list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0));
+  else list.sort((a,b)=>a.dist-b.dist);
+  S.source=source; S.list=list; S.lastError=(!list.length&&err);
+  await finishLoading(list.length);
+  if(seq!==S.reqSeq) return;
+  renderList(); renderNew();
 }
 const naverCache={};
 async function fetchNaver(){
@@ -538,10 +551,22 @@ function itemRow(r){
   li.appendChild(head); li.appendChild(det);
   return li;
 }
+const CAT_KO={all:"식당",korean:"한식",chinese:"중식",japanese:"일식",western:"양식·치킨",cafe:"카페·분식"};
 function renderList(){
   const ul=$("list"); ul.innerHTML="";
-  $("listCount").textContent=S.list.length?`(${S.list.length}곳)`:"";
-  if(!S.list.length){ ul.innerHTML='<li class="muted" style="padding:14px 4px">이 근처엔 식당이 없어요. 반경을 넓혀보세요.</li>'; return; }
+  if(!S.list.length){
+    $("listCount").textContent="";
+    if(S.lastError){
+      ul.innerHTML='<li><div class="empty"><div class="e-ic">😵</div><div>지금은 식당 정보를 못 불러왔어요.<br>잠깐 뒤 다시 해주세요.</div></div></li>';
+      const b=document.createElement("button"); b.className="btn btn-primary"; b.textContent="🔄 다시 시도";
+      b.style.maxWidth="220px"; b.style.margin="2px auto 6px"; b.onclick=()=>{ if(S.pos) loadRestaurants(); };
+      ul.appendChild(b);
+    } else {
+      ul.innerHTML=`<li><div class="empty"><div class="e-ic">🍽️</div><div>이 근처엔 ${CAT_KO[S.cat]||"식당"}을(를) 못 찾았어요.<br>범위를 '동네'나 '넓게'로 바꿔볼래요?</div></div></li>`;
+    }
+    return;
+  }
+  $("listCount").textContent=`(${S.list.length}곳)`;
   S.list.forEach(r=>ul.appendChild(itemRow(r)));
 }
 function renderNew(){
