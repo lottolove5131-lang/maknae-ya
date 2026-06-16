@@ -275,7 +275,7 @@
   <div class="sheet">
     <div class="grip"></div>
     <h3>⚙️ 설정 <span class="muted" style="font-size:14px;font-weight:600">(선택)</span></h3>
-    <div class="hint">키 없이도 OpenStreetMap으로 작동해요. 무료 카카오 키를 넣으면 <b>장소·식당·메뉴정보</b> 정확도가 크게 올라갑니다.</div>
+    <div class="hint">키 없이도 작동하지만 조금 느려요. 무료 카카오 키를 넣으면 <b>즉시 빨라지고</b> 식당·카테고리 정확도도 올라갑니다.</div>
     <label>카카오 REST API 키 <span class="muted">(무료)</span></label>
     <input class="txt" id="kakaoKey" placeholder="REST API 키 문자열" autocomplete="off">
     <div class="hint">
@@ -288,7 +288,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<footer>비용 0원 · 광고 없음<br>검색한 장소 주변만 보여줘요 · 별점은 네이버에 없어서 리뷰 수로 보여줘요</footer>
+<footer>비용 0원 · 광고 없음 · 검색한 장소 주변 식당을 찾아줘요<br><b style="color:var(--ink);letter-spacing:.5px">Made by Sunmi Jang</b></footer>
 
 <script>
 "use strict";
@@ -412,31 +412,29 @@ function mergeReviews(base, naver){ // 지도 전체식당(base) + 네이버 리
   nv2.forEach(x=>{ if(!used.has(x.k)) merged.push({...x.nv, dist:null}); }); // 지도에 없는 네이버 식당도 추가
   return merged;
 }
-function showResults(list, source, seq){ // 즉시 렌더(0.5s 멈춤 제거)
+function showResults(list, source, seq){ // 즉시 렌더(멈춤 없음)
   if(seq!==S.reqSeq) return;
   S.source=source; S.list=list; S.lastError=false;
-  S.sort=(source==="geo")?"dist":"review";
+  if(S.sort!=="name") S.sort="dist";
   applySort(); updateSortOptions(); renderList(); renderNew();
+}
+function mergeByName(a, b){ // a(카카오) 우선 + b(지도)에서 a에 없는 것 추가
+  const seen=new Set(a.map(x=>normName(x.name)));
+  return a.concat(b.filter(x=>{ const k=normName(x.name); if(seen.has(k))return false; seen.add(k); return true; }));
 }
 async function loadRestaurants(){
   const seq=++S.reqSeq;                 // 요청 순번 — 늦게 온 응답이 화면 덮는 것 방지
   startLoading();
   S.radius=SCOPE_M[S.scope]||500;
-  if(S.cat==="all"){
-    // 네이버 먼저 빠르게(~1s) 표시 → 지도(모든 식당) 오면 합쳐서 갱신 (체감속도↑)
-    const naverP=fetchNaver().catch(()=>[]), osmP=fetchOSM().catch(()=>[]);
-    const naver=await naverP; if(seq!==S.reqSeq) return;
-    if(naver.length) showResults(naver,"naver");                    // 1차 빠른 표시
-    const base=await osmP; if(seq!==S.reqSeq) return;
-    if(base.length) showResults(mergeReviews(base,naver),"merge");  // 2차 모든 식당 합침
-    else if(!naver.length){ S.list=[]; S.lastError=true; S.source="merge"; renderList(); renderNew(); }
-  } else {
-    let naver=[]; try{ naver=await fetchNaver(); }catch(e){}
-    if(seq!==S.reqSeq) return;
-    if(naver.length>=3) showResults(naver,"naver");
-    else{ setLoadText("🔎 지도에서 더 찾는 중…"); let g=[]; try{ g=await fetchOSM(); }catch(e){} if(seq!==S.reqSeq) return;
-      if(g.length) showResults(g,"geo"); else { S.list=[]; S.lastError=true; S.source="naver"; renderList(); renderNew(); } }
-  }
+  // 카카오 키 있으면 즉시 빠른 첫 화면(공식 API), 없으면 지도(OSM). 네이버 스크래핑 안 씀 → 빠름
+  let kk=[];
+  if(S.kakao){ try{ kk=await fetchKakao(); }catch(e){} if(seq!==S.reqSeq) return; if(kk.length) showResults(kk,"geo"); }
+  // 지도(OSM)로 모든 식당 채우기(카카오에 없는 소규모까지)
+  let osm=[]; try{ osm=await fetchOSM(); }catch(e){}
+  if(seq!==S.reqSeq) return;
+  const merged = kk.length ? mergeByName(kk, osm) : osm;
+  if(merged.length) showResults(merged,"geo");
+  else if(!kk.length){ S.list=[]; S.lastError=true; S.source="geo"; renderList(); renderNew(); }
 }
 function applySort(){
   const by=S.sort;
@@ -447,9 +445,7 @@ function applySort(){
 }
 function updateSortOptions(){
   const sel=$("sortSel"); if(!sel) return;
-  const opts = S.source==="geo" ? [["dist","가까운순"],["name","이름순"]]
-    : S.source==="merge" ? [["review","리뷰 많은순"],["dist","가까운순"],["name","이름순"]]
-    : [["review","리뷰 많은순"],["new","새로 생긴순"],["name","이름순"]];
+  const opts = [["dist","가까운순"],["name","이름순"]]; // 리뷰 미사용 → 거리/이름
   sel.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join("");
   sel.value=S.sort;
 }
