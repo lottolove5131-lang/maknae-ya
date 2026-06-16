@@ -128,7 +128,7 @@
       <button class="chip" data-cat="western">양식·치킨</button>
       <button class="chip" data-cat="cafe">카페·분식</button>
     </div>
-    <div class="rad" id="radChips">
+    <div class="rad" id="radChips" style="display:none">
       <button class="chip on" data-r="500">500m</button>
       <button class="chip" data-r="1000">1km</button>
       <button class="chip" data-r="2000">2km</button>
@@ -223,13 +223,60 @@ function selectPlace(c){
   window.scrollTo({top:0});
 }
 
-/* ===== 식당 불러오기 ===== */
+/* ===== 식당 불러오기 (네이버 플레이스 우선: 리뷰수·새오픈) ===== */
+const CAT_WORD={all:"맛집",korean:"한식",chinese:"중식",japanese:"일식",western:"양식",cafe:"카페"};
 async function loadRestaurants(){
-  $("list").innerHTML='<li class="muted" style="padding:14px 4px">불러오는 중…</li>';
+  $("list").innerHTML='<li class="muted" style="padding:14px 4px">맛집 불러오는 중… (잠깐 걸려요)</li>';
+  S.source="naver";
+  let list=[];
+  try{ list=await fetchNaver(); }catch(e){ list=[]; }
+  if(list.length>=3){
+    list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0)); // 리뷰 많은 순(인기순)
+    S.list=list; renderList(); renderNew(); return;
+  }
+  // 폴백: 카카오/OSM (리뷰 없음, 거리순)
+  S.source="geo";
   try{ S.list = S.kakao ? await fetchKakao() : await fetchOSM(); }
   catch(e){ try{ S.list=await fetchOSM(); }catch(e2){ S.list=[]; } }
   S.list.sort((a,b)=>a.dist-b.dist);
   renderList(); renderNew();
+}
+async function fetchNaver(){
+  const catWord=CAT_WORD[S.cat]||"맛집";
+  const query=`${S.placeName} ${catWord==="맛집"?"맛집":catWord+" 맛집"}`;
+  const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
+  const proxies=[ "https://r.jina.ai/"+target,
+                  "https://api.allorigins.win/raw?url="+encodeURIComponent(target) ];
+  let md=null;
+  for(const u of proxies){
+    try{ const r=await fetch(u,{headers:{"x-respond-with":"markdown"}}); if(!r.ok) continue; md=await r.text(); if(md&&md.length>500) break; }catch(e){}
+  }
+  if(!md) return [];
+  return parseNaver(md);
+}
+const NV_PROMO=/(예약시[^ ]*|예약|톡톡|쿠폰|영수증|바로결제|예약하기|포장|배달|주차|웰컴|키트|적립|할인|이벤트|네이버 예약|외$)/g;
+const NV_AD=/맛동여지도|할인 쿠폰|OPEN 네이버/;
+function parseNaver(md){
+  // 식당 홈링크 [텍스트](.../restaurant/ID?entry=ple) — 텍스트에 이미지 마크다운 중첩 허용
+  const re=/\[((?:!\[[^\]]*\]\([^)]*\)\s*)*[^\[\]]*)\]\(https:\/\/m\.place\.naver\.com\/restaurant\/(\d+)\?entry=ple\)/g;
+  let m, occ=[]; while((m=re.exec(md))) occ.push({text:m[1], id:m[2], idx:m.index});
+  const cards=[];
+  for(let i=0;i<occ.length;i++){ if(!cards.length||cards[cards.length-1].id!==occ[i].id) cards.push(occ[i]); }
+  return cards.map((c,i)=>{
+    const end=i+1<cards.length?cards[i+1].idx:md.length;
+    const blk=md.slice(c.idx,end);
+    let name=c.text.replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(NV_PROMO,"").replace(/\s+/g," ").trim();
+    let cat="";
+    const cm=name.match(/\s+([^ ]*(?:육류|고기요리|한식|중식당?|일식당?|양식|카페|찜|탕|면류?|국밥|치킨|피자|버거|곱창|회|초밥|라면|분식|냉면|[^ ]*요리|[^ ]*전문)[^ ]*)$/);
+    if(cm){ cat=cm[1].replace(/,/g," "); name=name.slice(0,cm.index).trim(); }
+    const revStr=(blk.match(/리뷰\s*([\d,]+)/)||[])[1]||"";
+    const open=(blk.match(/영업\s*(중|전|종료)/)||[])[1]||"";
+    const addr=(blk.match(/(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)[^\]]{0,18}?(동|읍|면)/)||[])[0]||"";
+    return { name, cat, reviews:revStr, reviewsNum:+revStr.replace(/,/g,"")||0,
+      isNew:/새로오픈/.test(blk), revisit:/재방문 많은/.test(blk), open, addr, dist:null, phone:"",
+      naverHome:`https://m.place.naver.com/restaurant/${c.id}/home`,
+      naverMenu:`https://m.place.naver.com/restaurant/${c.id}/menu/list`, kakaoUrl:"" };
+  }).filter(x=>x.name && x.name.length>=2 && !NV_AD.test(x.name));
 }
 async function fetchKakao(){
   let docs=[];
@@ -280,25 +327,39 @@ function filterCat(arr,isKakao){
 function matchKoCat(catKo,key){ const m={korean:["한식"],chinese:["중식"],japanese:["일식"],western:["양식","피자","버거","치킨"],cafe:["카페","베이커리","패스트푸드"]}; return (m[key]||[]).some(w=>catKo.includes(w)); }
 
 /* ===== 렌더 (클릭→메뉴/정보 펼침) ===== */
-function naverUrl(r){ return `https://map.naver.com/p/search/${encodeURIComponent(r.name+" "+(S.placeShort||""))}`; }
+function naverSearchUrl(r){ return `https://map.naver.com/p/search/${encodeURIComponent(r.name+" "+(S.placeShort||""))}`; }
+function metaLine(r){
+  const bits=[];
+  if(r.cat) bits.push(esc(r.cat));
+  if(r.reviews) bits.push(`<span class="rd">⭐ 리뷰 ${esc(r.reviews)}</span>`);
+  else if(r.dist!=null) bits.push(`<span class="rd">${fmtDist(r.dist)}</span>`);
+  if(r.open==="중") bits.push('<span style="color:var(--green);font-weight:700">영업중</span>');
+  return bits.join(" · ");
+}
 function itemRow(r){
   const li=document.createElement("li"); li.className="ritem";
   const head=document.createElement("div"); head.className="rhead";
+  let badges=r.isNew?'<span class="badge-new">NEW오픈</span>':'';
+  if(r.revisit) badges+=' <span class="badge-new" style="background:#6c63ff">재방문↑</span>';
   head.innerHTML=`<div class="info">
-      <div class="rn">${esc(r.name)} ${r.isNew?'<span class="badge-new">NEW</span>':''}</div>
-      <div class="rc">${esc(r.cat||"음식점")} · <span class="rd">${fmtDist(r.dist)}</span></div>
+      <div class="rn">${esc(r.name)} ${badges}</div>
+      <div class="rc">${metaLine(r)||"음식점"}</div>
     </div><span class="go">›</span>`;
   const det=document.createElement("div"); det.className="detail";
   let rows="";
-  if(r.addr) rows+=`<div class="drow"><span class="k">주소</span><span>${esc(r.addr)}</span></div>`;
+  if(r.addr) rows+=`<div class="drow"><span class="k">위치</span><span>${esc(r.addr)}</span></div>`;
+  if(r.reviews) rows+=`<div class="drow"><span class="k">리뷰</span><span>${esc(r.reviews)}개</span></div>`;
+  if(r.open) rows+=`<div class="drow"><span class="k">영업</span><span>${r.open==="중"?"영업중":r.open==="전"?"영업 시작 전":"영업종료"}</span></div>`;
   if(r.phone) rows+=`<div class="drow"><span class="k">전화</span><span>${esc(r.phone)}</span></div>`;
-  if(r.hours) rows+=`<div class="drow"><span class="k">영업</span><span>${esc(r.hours)}</span></div>`;
-  rows+=`<div class="drow"><span class="k">거리</span><span>여기서 ${fmtDist(r.dist)}</span></div>`;
-  let btns=`<a class="dbtn naver" href="${naverUrl(r)}" target="_blank" rel="noopener">📋 네이버 메뉴·사진·리뷰</a>`;
-  if(r.kakaoUrl) btns+=`<a class="dbtn kakao" href="${esc(r.kakaoUrl)}" target="_blank" rel="noopener">카카오 상세</a>`;
+  if(r.dist!=null) rows+=`<div class="drow"><span class="k">거리</span><span>여기서 ${fmtDist(r.dist)}</span></div>`;
+  let btns="";
+  if(r.naverHome) btns+=`<a class="dbtn naver" href="${esc(r.naverHome)}" target="_blank" rel="noopener">📋 메뉴·사진·리뷰</a>`;
+  else btns+=`<a class="dbtn naver" href="${naverSearchUrl(r)}" target="_blank" rel="noopener">📋 네이버에서 보기</a>`;
+  if(r.naverMenu) btns+=`<a class="dbtn kakao" href="${esc(r.naverMenu)}" target="_blank" rel="noopener" style="background:#03c75a;color:#fff">💰 메뉴·가격</a>`;
+  else if(r.kakaoUrl) btns+=`<a class="dbtn kakao" href="${esc(r.kakaoUrl)}" target="_blank" rel="noopener">카카오 상세</a>`;
   if(r.phone) btns+=`<a class="dbtn call" href="tel:${esc(r.phone.replace(/[^0-9+]/g,''))}">📞 전화</a>`;
-  det.innerHTML=`<div style="font-size:12px;color:var(--gray);margin-bottom:6px">메뉴·사진·리뷰는 아래 버튼에서 (네이버/카카오 상세)</div>${rows}<div class="dbtns">${btns}</div>`;
-  head.onclick=()=>{ li.classList.toggle("open"); };
+  det.innerHTML=`<div style="font-size:12px;color:var(--gray);margin-bottom:8px">👇 가격·메뉴·사진·평점은 버튼에서 (네이버 상세)</div>${rows}<div class="dbtns">${btns}</div>`;
+  head.onclick=()=>li.classList.toggle("open");
   li.appendChild(head); li.appendChild(det);
   return li;
 }
