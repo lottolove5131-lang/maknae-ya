@@ -41,7 +41,9 @@
   .wrap{padding:16px 16px 0;}
   .card{background:var(--card); border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
   /* 필터바: 스크롤해도 고정 → 카테고리 전환이 항상 보임 */
-  #filterCard{position:sticky; top:56px; z-index:20; padding:12px 16px;}
+  #filterCard{position:sticky; top:55px; z-index:20; padding:11px 0 9px; background:var(--bg); box-shadow:0 8px 12px -8px rgba(20,24,33,.12);}
+  .sortsel{margin-left:auto; border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:10px; padding:6px 10px; font-size:13px; font-weight:600; cursor:pointer; -webkit-appearance:none; appearance:none;}
+  .cand-reg{display:inline-block; font-size:11px; font-weight:700; color:var(--point-d); background:#fff4f0; border:1px solid #ffe3da; border-radius:10px; padding:1px 7px; vertical-align:middle; margin-left:4px;}
 
   /* ===== Hero CTA ===== */
   .hero-cta{
@@ -227,6 +229,10 @@
       <button class="chip" data-scope="area">🏘 동네</button>
       <button class="chip" data-scope="wide">🌆 넓게</button>
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:11px">
+      <span style="font-size:12.5px;color:var(--gray);font-weight:600">정렬</span>
+      <select id="sortSel" class="sortsel"><option value="review">리뷰 많은순</option></select>
+    </div>
   </div>
 
   <!-- NEW 오픈 -->
@@ -286,7 +292,7 @@
 
 <script>
 "use strict";
-const S = { pos:null, placeName:"", placeShort:"", area:"", area2:"", scope:"near", cat:"all", radius:500, list:[], source:"", reqSeq:0, lastError:false, kakao: localStorage.getItem('npf_kakao')||"" };
+const S = { pos:null, placeName:"", placeShort:"", area:"", area2:"", scope:"near", cat:"all", sort:"review", radius:500, list:[], source:"", reqSeq:0, lastError:false, kakao: localStorage.getItem('npf_kakao')||"" };
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
 function dist(a,b,c,d){ const R=6371000,toR=x=>x*Math.PI/180; const dLat=toR(c-a),dLng=toR(d-b);
@@ -320,17 +326,22 @@ async function geocodeCandidates(q){
       return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:disp,area,area2}; });
   }catch(e){ return []; }
 }
+let _searchSeq=0;
 async function runSearch(q){
-  q=(q!=null?q:$("placeInput").value).trim();
+  const explicit=q!=null;
+  q=(explicit?q:$("placeInput").value).trim();
   if(!q){ toast("가고 싶은 장소를 입력하세요"); $("placeInput").focus(); return; }
-  $("placeInput").value=q;
+  if(explicit) $("placeInput").value=q;
+  const seq=++_searchSeq;
   const box=$("cand"); box.style.display="block"; box.innerHTML='<li class="muted" style="padding:16px 8px">🔎 검색 중…</li>';
-  const cands=await geocodeCandidates(q);
-  if(!cands.length){ box.innerHTML='<li class="muted" style="padding:16px 8px">검색 결과가 없어요. 다른 키워드로 해보세요 (예: 역 이름, 건물명)</li>'; return; }
+  let cands=[]; try{ cands=await geocodeCandidates(q); }catch(e){ cands=[]; }
+  if(seq!==_searchSeq) return; // 빠르게 타이핑해도 늦은 결과가 덮지 않게
+  if(!cands.length){ box.innerHTML='<li class="muted" style="padding:16px 8px">그 이름으론 못 찾았어요. 역 이름이나 건물명으로 다시 해볼래요?</li>'; return; }
   box.innerHTML="";
   cands.forEach(c=>{
+    const reg=[c.area2,c.area].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(" ");
     const li=document.createElement("li");
-    li.innerHTML=`<span class="pin">📍</span><div style="flex:1;min-width:0"><div class="cn">${esc(c.name)}</div><div class="ca">${esc(c.addr)}</div></div><span class="sel">선택 ›</span>`;
+    li.innerHTML=`<span class="pin">📍</span><div style="flex:1;min-width:0"><div class="cn">${esc(c.name)}${reg?` <span class="cand-reg">${esc(reg)}</span>`:""}</div><div class="ca">${esc(c.addr)}</div></div><span class="sel">선택 ›</span>`;
     li.onclick=()=>selectPlace(c);
     box.appendChild(li);
   });
@@ -399,12 +410,26 @@ async function loadRestaurants(){
     if(seq!==S.reqSeq) return;
     source="geo";
   }
-  if(source==="naver") list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0));
-  else list.sort((a,b)=>a.dist-b.dist);
   S.source=source; S.list=list; S.lastError=(!list.length&&err);
+  S.sort=(source==="geo")?"dist":"review"; // 소스별 기본 정렬
+  applySort(); updateSortOptions();
   await finishLoading(list.length);
   if(seq!==S.reqSeq) return;
   renderList(); renderNew();
+}
+function applySort(){
+  const by=S.sort;
+  if(by==="name") S.list.sort((a,b)=>(a.name||"").localeCompare(b.name||"","ko"));
+  else if(by==="new") S.list.sort((a,b)=>((b.isNew?1:0)-(a.isNew?1:0))||((b.reviewsNum||0)-(a.reviewsNum||0)));
+  else if(by==="dist") S.list.sort((a,b)=>(a.dist||0)-(b.dist||0));
+  else S.list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0));
+}
+function updateSortOptions(){
+  const sel=$("sortSel"); if(!sel) return;
+  const opts = S.source==="geo" ? [["dist","가까운순"],["name","이름순"]]
+    : [["review","리뷰 많은순"],["new","새로 생긴순"],["name","이름순"]];
+  sel.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join("");
+  sel.value=S.sort;
 }
 const naverCache={};
 async function fetchNaver(){
@@ -579,6 +604,13 @@ function renderNew(){
 /* ===== 이벤트 ===== */
 $("searchBtn").onclick=()=>runSearch();
 $("placeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") runSearch(); });
+let _sdebounce=null;
+$("placeInput").addEventListener("input",e=>{ // 타이핑하면 자동으로 후보 검색(디바운스)
+  clearTimeout(_sdebounce); const v=e.target.value.trim();
+  if(v.length<2){ $("cand").style.display="none"; return; }
+  _sdebounce=setTimeout(()=>runSearch(), 450);
+});
+$("sortSel").onchange=e=>{ S.sort=e.target.value; applySort(); renderList(); };
 $("exRow").addEventListener("click",e=>{ const b=e.target.closest("b[data-q]"); if(b) runSearch(b.dataset.q); });
 $("openAddr").onclick=openAddrPopup;
 $("changeLoc").onclick=openAddrPopup;
