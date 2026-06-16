@@ -629,7 +629,13 @@ function renderList(){
     return;
   }
   $("listCount").textContent=`(${S.list.length}곳)`;
-  S.list.forEach(r=>ul.appendChild(itemRow(r)));
+  const CHUNK=40; let shown=0;                       // 한 번에 40개만 그려서 빠르게(수백개 렌더 지연 방지)
+  const more=()=>{ const frag=document.createDocumentFragment();
+    S.list.slice(shown,shown+CHUNK).forEach(r=>frag.appendChild(itemRow(r))); ul.appendChild(frag); shown+=CHUNK;
+    let mb=$("moreBtn"); if(mb) mb.remove();
+    if(shown<S.list.length){ const b=document.createElement("button"); b.id="moreBtn"; b.className="btn btn-ghost";
+      b.style.margin="6px auto"; b.style.maxWidth="240px"; b.textContent=`더 보기 (${S.list.length-shown}곳 남음)`; b.onclick=more; ul.appendChild(b); } };
+  more();
 }
 function renderNew(){
   const news=S.list.filter(r=>r.isNew).slice(0,8);
