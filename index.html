@@ -124,6 +124,17 @@
   .skel-l3{height:12px; width:40%;}
   @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 
+  /* ===== 로딩바 (식당 찾는 중) ===== */
+  .loadwrap{padding:6px 4px 16px;}
+  .loadtext{font-size:14.5px; font-weight:700; color:var(--ink); margin-bottom:11px; display:flex; align-items:center; gap:7px;}
+  .loadtext .lt-sub{font-weight:500; color:var(--gray); font-size:12.5px;}
+  .loadbar{height:9px; background:var(--line-2); border-radius:7px; overflow:hidden; position:relative;}
+  .loadbar > i{position:absolute; top:0; height:100%; width:42%; left:-42%;
+    background:linear-gradient(90deg,#ff5b6e,var(--point)); border-radius:7px; animation:lslide 1.05s infinite ease-in-out;}
+  @keyframes lslide{0%{left:-42%}100%{left:100%}}
+  .loadbar.done > i{position:static; width:100%; left:0; animation:none; background:var(--green);}
+  .loaddone{color:var(--green); font-weight:800;}
+
   /* ===== 빈 상태 ===== */
   .empty{padding:34px 16px; text-align:center; color:var(--gray);}
   .empty .e-ic{font-size:40px; opacity:.7;}
@@ -208,10 +219,11 @@
       <button class="chip" data-cat="western">양식·치킨</button>
       <button class="chip" data-cat="cafe">카페·분식</button>
     </div>
-    <div class="rad" id="radChips" style="display:none">
-      <button class="chip on" data-r="500">500m</button>
-      <button class="chip" data-r="1000">1km</button>
-      <button class="chip" data-r="2000">2km</button>
+    <div style="font-size:12.5px;color:var(--gray);margin:10px 2px 2px;font-weight:600">찾는 범위</div>
+    <div class="rad" id="radChips">
+      <button class="chip on" data-scope="near">📍 가까이</button>
+      <button class="chip" data-scope="area">🏘 동네</button>
+      <button class="chip" data-scope="wide">🌆 넓게</button>
     </div>
   </div>
 
@@ -272,7 +284,7 @@
 
 <script>
 "use strict";
-const S = { pos:null, placeName:"", placeShort:"", cat:"all", radius:500, list:[], kakao: localStorage.getItem('npf_kakao')||"" };
+const S = { pos:null, placeName:"", placeShort:"", area:"", area2:"", scope:"near", cat:"all", radius:500, list:[], kakao: localStorage.getItem('npf_kakao')||"" };
 const $ = id => document.getElementById(id);
 function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
 function dist(a,b,c,d){ const R=6371000,toR=x=>x*Math.PI/180; const dLat=toR(c-a),dLng=toR(d-b);
@@ -291,7 +303,8 @@ async function geocodeCandidates(q){
       const r=await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=8`,{headers:{Authorization:"KakaoAK "+S.kakao}});
       if(r.ok){ const j=await r.json();
         const a=(j.documents||[]).map(d=>{ const addr=d.road_address_name||d.address_name||"";
-          return {lat:+d.y,lng:+d.x,name:d.place_name,addr,area:areaFromAddr(addr)}; });
+          const area2=(addr.match(/[가-힣]+(구|군)/)||[])[0]||(addr.match(/[가-힣]+시/)||[])[0]||"";
+          return {lat:+d.y,lng:+d.x,name:d.place_name,addr,area:areaFromAddr(addr),area2}; });
         if(a.length) return a; }
     }catch(e){}
   }
@@ -300,8 +313,9 @@ async function geocodeCandidates(q){
     const j=await r.json();
     return (j||[]).map(d=>{ const parts=(d.display_name||"").split(",").map(s=>s.trim()); const a=d.address||{};
       const area=a.suburb||a.quarter||a.neighbourhood||a.borough||a.city_district||a.town||a.city||a.county||"";
+      const area2=a.borough||a.city_district||a.city||a.county||a.province||"";
       const disp=[a.borough||a.city_district||a.city||a.county, a.suburb||a.quarter||a.neighbourhood].filter(Boolean).join(" ")||parts.slice(1,4).join(" ");
-      return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:disp,area}; });
+      return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:disp,area,area2}; });
   }catch(e){ return []; }
 }
 async function runSearch(q){
@@ -323,6 +337,7 @@ function selectPlace(c){
   S.pos={lat:c.lat,lng:c.lng}; S.placeName=c.name; S.placeShort=(c.addr||"").split(" ").slice(0,2).join(" ")||c.name;
   // 선택한 장소의 지역을 네이버 검색에 붙여 그 동네로 고정 (엉뚱한 지역 방지)
   S.area = c.area || areaFromAddr(c.addr);
+  S.area2 = c.area2 || (c.addr.match(/[가-힣]+(구|군|시)/)||[])[0] || S.area;
   $("addrPanel").classList.remove("open"); $("cand").style.display="none";
   $("locLabel").textContent="📍 "+c.name;
   $("openAddr").style.display="none"; $("curLoc").style.display="block";
@@ -333,37 +348,61 @@ function selectPlace(c){
 }
 function openAddrPopup(){ $("addrPanel").classList.add("open"); setTimeout(()=>$("placeInput").focus(),100); }
 function resetAll(){
-  S.pos=null; S.placeName=""; S.list=[]; S.cat="all";
+  S.pos=null; S.placeName=""; S.area=""; S.area2=""; S.list=[]; S.cat="all"; S.scope="near";
   $("openAddr").style.display="block"; $("curLoc").style.display="none"; $("filterCard").style.display="none"; $("newCard").style.display="none";
   $("locLabel").textContent="가고 싶은 장소를 검색하세요"; $("listCount").textContent="";
   $("list").innerHTML='<li><div class="empty"><div class="e-ic">🍽️</div><div class="e-t">아직 위치가 없어요</div><div class="e-s">위 「장소 검색」을 눌러 위치를 정하면<br>그 근처 식당이 리뷰순으로 쭉 나옵니다.</div></div></li>';
   $("placeInput").value=""; $("cand").style.display="none";
   [...$("catChips").children].forEach((c,i)=>c.classList.toggle("on",i===0));
+  [...$("radChips").children].forEach((c,i)=>c.classList.toggle("on",i===0));
 }
 
 /* ===== 식당 불러오기 (네이버 플레이스 우선: 리뷰수·새오픈) ===== */
 const CAT_WORD={all:"맛집",korean:"한식",chinese:"중식",japanese:"일식",western:"양식",cafe:"카페"};
+let _ltTimer=null;
+function startLoading(){
+  clearInterval(_ltTimer);
+  $("listCount").textContent="찾는 중…";
+  $("list").innerHTML=`<li><div class="loadwrap"><div class="loadtext" id="loadText">🔍 이 근처 식당 찾는 중…</div><div class="loadbar" id="loadBar"><i></i></div></div></li>`+
+    Array(3).fill('<li class="skel-li"><div class="skel-box skel-th"></div><div class="skel-lines"><div class="skel-box skel-l1"></div><div class="skel-box skel-l2"></div><div class="skel-box skel-l3"></div></div></li>').join("");
+  const steps=["🔍 이 근처 식당 찾는 중…","🍜 맛집 모으는 중…","⭐ 리뷰 정리하는 중…"];
+  let i=0; _ltTimer=setInterval(()=>{ i=(i+1)%steps.length; const el=$("loadText"); if(el) el.textContent=steps[i]; }, 700);
+}
+function setLoadText(t){ const el=$("loadText"); if(el) el.textContent=t; }
+function finishLoading(n){
+  clearInterval(_ltTimer);
+  const bar=$("loadBar"), el=$("loadText");
+  if(bar) bar.classList.add("done");
+  if(el) el.innerHTML=`<span class="loaddone">✅ 다 찾았어요</span> <span class="lt-sub">· ${n}곳</span>`;
+  return new Promise(r=>setTimeout(r,500)); // 「다 찾음」 잠깐 보여주고 리스트로
+}
 async function loadRestaurants(){
-  $("list").innerHTML=Array(5).fill('<li class="skel-li"><div class="skel-box skel-th"></div><div class="skel-lines"><div class="skel-box skel-l1"></div><div class="skel-box skel-l2"></div><div class="skel-box skel-l3"></div></div></li>').join("");
+  startLoading();
   S.source="naver";
   let list=[];
   try{ list=await fetchNaver(); }catch(e){ list=[]; }
   if(list.length>=3){
     list.sort((a,b)=>(b.reviewsNum||0)-(a.reviewsNum||0)); // 리뷰 많은 순(인기순)
-    S.list=list; renderList(); renderNew(); return;
+    S.list=list; await finishLoading(list.length); renderList(); renderNew(); return;
   }
   // 폴백: 카카오/OSM (리뷰 없음, 거리순)
+  setLoadText("🔎 다른 곳에서 더 찾는 중…");
   S.source="geo";
   try{ S.list = S.kakao ? await fetchKakao() : await fetchOSM(); }
   catch(e){ try{ S.list=await fetchOSM(); }catch(e2){ S.list=[]; } }
   S.list.sort((a,b)=>a.dist-b.dist);
-  renderList(); renderNew();
+  await finishLoading(S.list.length); renderList(); renderNew();
 }
 const naverCache={};
 async function fetchNaver(){
   const catWord=CAT_WORD[S.cat]||"맛집";
   const food=catWord==="맛집"?"맛집":catWord+" 맛집";
-  const query=`${S.placeName} ${S.area||""} ${food}`.replace(/\s+/g," ").trim(); // 지역 포함→엉뚱한 동네 방지
+  // 찾는 범위: 가까이=장소명+동네 / 동네=동네 / 넓게=구·시
+  let loc;
+  if(S.scope==="area") loc=S.area||S.placeName;
+  else if(S.scope==="wide") loc=S.area2||S.area||S.placeName;
+  else loc=`${S.placeName} ${S.area||""}`;
+  const query=`${loc} ${food}`.replace(/\s+/g," ").trim();
   if(naverCache[query]) return naverCache[query]; // 같은 검색 즉시
   const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
   const proxies=[ "https://r.jina.ai/"+target,
@@ -522,7 +561,7 @@ $("resetBtn").onclick=resetAll;
 $("addrClose").onclick=()=>$("addrPanel").classList.remove("open");
 $("addrPanel").onclick=e=>{ if(e.target===$("addrPanel")) $("addrPanel").classList.remove("open"); };
 $("catChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("catChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.cat=b.dataset.cat; if(S.pos) loadRestaurants(); };
-$("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.radius=+b.dataset.r; if(S.pos) loadRestaurants(); };
+$("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.scope=b.dataset.scope; if(S.pos) loadRestaurants(); };
 $("gearBtn").onclick=()=>{ $("kakaoKey").value=S.kakao; $("originHint").textContent=location.origin; $("panel").classList.add("open"); };
 $("closePanelBtn").onclick=()=>$("panel").classList.remove("open");
 $("panel").onclick=e=>{ if(e.target===$("panel")) $("panel").classList.remove("open"); };
