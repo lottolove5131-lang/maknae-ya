@@ -455,15 +455,10 @@ function updateSortOptions(){
   sel.value=S.sort;
 }
 const naverCache={}, osmCache={};
-async function fetchNaver(){
-  const catWord=CAT_WORD[S.cat]||"맛집";
-  const food=catWord==="맛집"?"맛집":catWord+" 맛집";
-  // 리뷰는 장소 주변 인기식당 기준(범위는 지도 반경이 담당)
-  const query=`${S.placeName} ${S.area||""} ${food}`.replace(/\s+/g," ").trim();
-  if(naverCache[query]) return naverCache[query]; // 같은 검색 즉시
+async function fetchNaverQ(query){
+  if(naverCache[query]) return naverCache[query];
   const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
-  const proxies=[ "https://r.jina.ai/"+target,
-                  "https://api.allorigins.win/raw?url="+encodeURIComponent(target) ];
+  const proxies=[ "https://r.jina.ai/"+target, "https://api.allorigins.win/raw?url="+encodeURIComponent(target) ];
   let md=null;
   for(const u of proxies){
     try{
@@ -475,6 +470,19 @@ async function fetchNaver(){
   if(!md) return [];
   const out=parseNaver(md);
   if(out.length>=3) naverCache[query]=out;
+  return out;
+}
+async function fetchNaver(){
+  const catWord=CAT_WORD[S.cat]||"맛집";
+  const food=catWord==="맛집"?"맛집":catWord+" 맛집";
+  // 똑똑한 로케이터: 장소명이 이미 역/동/구/시면 그대로(동 중복금지), 아니면 동네 붙임
+  const isArea=/(역|동|읍|면|리|구|군|시|가|로)$/.test(S.placeName.trim());
+  const primary = isArea ? S.placeName : `${S.placeName} ${S.area||""}`.trim();
+  let out = await fetchNaverQ(`${primary} ${food}`.replace(/\s+/g," ").trim());
+  if(out.length<5){ // 너무 좁으면 동네 기준으로 재시도(장소명+동 둘다 넣어 과constrain된 경우)
+    const alt = S.area || S.placeName;
+    if(alt && alt!==primary){ const o2=await fetchNaverQ(`${alt} ${food}`.replace(/\s+/g," ").trim()); if(o2.length>out.length) out=o2; }
+  }
   return out;
 }
 const NV_PROMO=/(예약시[^ ]*|예약|톡톡|쿠폰|영수증|바로결제|예약하기|포장|배달|주차|웰컴|키트|적립|할인|이벤트|네이버 예약|외$)/g;
