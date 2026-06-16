@@ -103,19 +103,16 @@
 
 <div class="wrap">
 
-  <!-- 장소 검색 -->
-  <div class="card">
-    <div class="searchbar">
-      <input id="placeInput" placeholder="장소·건물·역·동네 (예: 강남 교보타워)" autocomplete="off">
-      <button id="searchBtn">검색</button>
+  <!-- 위치 바 -->
+  <div class="card" id="locBar">
+    <button class="btn btn-primary" id="openAddr" style="margin-top:0">📍 어디서 드세요? — 장소 검색</button>
+    <div id="curLoc" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0"><b id="curLocName" style="font-size:15px"></b></div>
+        <button id="changeLoc" style="background:#f0f1f4;border:none;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">📍 위치 바꾸기</button>
+        <button id="resetBtn" style="background:none;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer">🔄 리셋</button>
+      </div>
     </div>
-    <div class="ex" id="exRow">예시 →
-      <b data-q="판교역">판교역</b> ·
-      <b data-q="강남역">강남역</b> ·
-      <b data-q="여의도 IFC몰">여의도 IFC몰</b> ·
-      <b data-q="홍대입구역">홍대입구역</b>
-    </div>
-    <ul class="cand" id="cand" style="display:none"></ul>
   </div>
 
   <!-- 필터 -->
@@ -147,6 +144,26 @@
     <ul class="rlist" id="list"><li class="muted" style="padding:14px 4px">위 검색창에 장소를 입력하고 검색하면, 그 근처 식당이 쭉 나옵니다.</li></ul>
   </div>
 
+</div>
+
+<!-- 주소 검색 팝업 -->
+<div class="panel" id="addrPanel">
+  <div class="sheet">
+    <h3>📍 장소·주소 검색</h3>
+    <div class="hint" style="margin-bottom:10px">가고 싶은 장소·건물·역·동네를 입력하고, 아래 결과에서 선택하세요.</div>
+    <div class="searchbar">
+      <input id="placeInput" placeholder="예: 강남 교보타워, 판교역, 역삼동" autocomplete="off">
+      <button id="searchBtn">검색</button>
+    </div>
+    <div class="ex" id="exRow">예시 →
+      <b data-q="판교역">판교역</b> ·
+      <b data-q="강남역">강남역</b> ·
+      <b data-q="여의도 IFC몰">여의도 IFC몰</b> ·
+      <b data-q="홍대입구역">홍대입구역</b>
+    </div>
+    <ul class="cand" id="cand" style="display:none"></ul>
+    <button class="btn btn-ghost" id="addrClose" style="margin-top:14px">닫기</button>
+  </div>
 </div>
 
 <!-- 설정 -->
@@ -215,12 +232,22 @@ async function runSearch(q){
 }
 function selectPlace(c){
   S.pos={lat:c.lat,lng:c.lng}; S.placeName=c.name; S.placeShort=(c.addr||"").split(" ").slice(0,2).join(" ")||c.name;
-  localStorage.setItem('npf_place', $("placeInput").value.trim());
-  $("cand").style.display="none";
-  $("locLabel").textContent="📍 "+c.name+(c.addr?" · "+c.addr:"");
+  $("addrPanel").classList.remove("open"); $("cand").style.display="none";
+  $("locLabel").textContent="📍 "+c.name;
+  $("openAddr").style.display="none"; $("curLoc").style.display="block";
+  $("curLocName").textContent="📍 "+c.name+(c.addr?" · "+c.addr:"");
   $("filterCard").style.display="block";
   loadRestaurants();
   window.scrollTo({top:0});
+}
+function openAddrPopup(){ $("addrPanel").classList.add("open"); setTimeout(()=>$("placeInput").focus(),100); }
+function resetAll(){
+  S.pos=null; S.placeName=""; S.list=[]; S.cat="all";
+  $("openAddr").style.display="block"; $("curLoc").style.display="none"; $("filterCard").style.display="none"; $("newCard").style.display="none";
+  $("locLabel").textContent="가고 싶은 장소를 검색하세요"; $("listCount").textContent="";
+  $("list").innerHTML='<li class="muted" style="padding:14px 4px">위 「장소 검색」을 눌러 장소를 정하면, 그 근처 식당이 쭉 나옵니다.</li>';
+  $("placeInput").value=""; $("cand").style.display="none";
+  [...$("catChips").children].forEach((c,i)=>c.classList.toggle("on",i===0));
 }
 
 /* ===== 식당 불러오기 (네이버 플레이스 우선: 리뷰수·새오픈) ===== */
@@ -241,18 +268,26 @@ async function loadRestaurants(){
   S.list.sort((a,b)=>a.dist-b.dist);
   renderList(); renderNew();
 }
+const naverCache={};
 async function fetchNaver(){
   const catWord=CAT_WORD[S.cat]||"맛집";
   const query=`${S.placeName} ${catWord==="맛집"?"맛집":catWord+" 맛집"}`;
+  if(naverCache[query]) return naverCache[query]; // 같은 검색 즉시
   const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
   const proxies=[ "https://r.jina.ai/"+target,
                   "https://api.allorigins.win/raw?url="+encodeURIComponent(target) ];
   let md=null;
   for(const u of proxies){
-    try{ const r=await fetch(u,{headers:{"x-respond-with":"markdown"}}); if(!r.ok) continue; md=await r.text(); if(md&&md.length>500) break; }catch(e){}
+    try{
+      const ctl=new AbortController(); const tid=setTimeout(()=>ctl.abort(),9000);
+      const r=await fetch(u,{headers:{"x-respond-with":"markdown"},signal:ctl.signal}); clearTimeout(tid);
+      if(!r.ok) continue; md=await r.text(); if(md&&md.length>500) break;
+    }catch(e){}
   }
   if(!md) return [];
-  return parseNaver(md);
+  const out=parseNaver(md);
+  if(out.length>=3) naverCache[query]=out;
+  return out;
 }
 const NV_PROMO=/(예약시[^ ]*|예약|톡톡|쿠폰|영수증|바로결제|예약하기|포장|배달|주차|웰컴|키트|적립|할인|이벤트|네이버 예약|외$)/g;
 const NV_AD=/맛동여지도|할인 쿠폰|OPEN 네이버/;
@@ -380,6 +415,11 @@ function renderNew(){
 $("searchBtn").onclick=()=>runSearch();
 $("placeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") runSearch(); });
 $("exRow").addEventListener("click",e=>{ const b=e.target.closest("b[data-q]"); if(b) runSearch(b.dataset.q); });
+$("openAddr").onclick=openAddrPopup;
+$("changeLoc").onclick=openAddrPopup;
+$("resetBtn").onclick=resetAll;
+$("addrClose").onclick=()=>$("addrPanel").classList.remove("open");
+$("addrPanel").onclick=e=>{ if(e.target===$("addrPanel")) $("addrPanel").classList.remove("open"); };
 $("catChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("catChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.cat=b.dataset.cat; if(S.pos) loadRestaurants(); };
 $("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.radius=+b.dataset.r; if(S.pos) loadRestaurants(); };
 $("gearBtn").onclick=()=>{ $("kakaoKey").value=S.kakao; $("originHint").textContent=location.origin; $("panel").classList.add("open"); };
@@ -387,8 +427,8 @@ $("closePanelBtn").onclick=()=>$("panel").classList.remove("open");
 $("panel").onclick=e=>{ if(e.target===$("panel")) $("panel").classList.remove("open"); };
 $("saveKeyBtn").onclick=()=>{ S.kakao=$("kakaoKey").value.trim(); localStorage.setItem('npf_kakao',S.kakao); $("panel").classList.remove("open"); toast(S.kakao?"카카오 키 저장됨":"키 삭제됨"); if(S.pos) loadRestaurants(); };
 
-/* 시작 */
-(function init(){ const last=localStorage.getItem('npf_place'); if(last){ $("placeInput").value=last; runSearch(last); } else $("placeInput").focus(); })();
+/* 시작 — 빈 화면 + 주소 팝업 자동 (지난 검색어 안 띄움) */
+(function init(){ try{ localStorage.removeItem('npf_place'); }catch(e){} openAddrPopup(); })();
 </script>
 </body>
 </html>
