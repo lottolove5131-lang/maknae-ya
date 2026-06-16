@@ -284,20 +284,24 @@ const KAKAO_CAT={korean:"한식",chinese:"중식",japanese:"일식",western:["�
 const OSM_CUISINE={korean:["korean"],chinese:["chinese"],japanese:["japanese","sushi","ramen"],western:["italian","pizza","burger","american","chicken","steak_house"],cafe:["cafe","coffee_shop","bakery","dessert"]};
 
 /* ===== 장소 후보 검색 (검색창 아래 리스트) ===== */
+function areaFromAddr(s){ s=s||""; return (s.match(/[가-힣]+(동|읍|면)/)||[])[0]||(s.match(/[가-힣]+(구|군)/)||[])[0]||(s.match(/[가-힣]+시/)||[])[0]||""; }
 async function geocodeCandidates(q){
   if(S.kakao){
     try{
       const r=await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=8`,{headers:{Authorization:"KakaoAK "+S.kakao}});
       if(r.ok){ const j=await r.json();
-        const a=(j.documents||[]).map(d=>({lat:+d.y,lng:+d.x,name:d.place_name,addr:d.road_address_name||d.address_name||""}));
+        const a=(j.documents||[]).map(d=>{ const addr=d.road_address_name||d.address_name||"";
+          return {lat:+d.y,lng:+d.x,name:d.place_name,addr,area:areaFromAddr(addr)}; });
         if(a.length) return a; }
     }catch(e){}
   }
   try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=kr&limit=8&accept-language=ko`);
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&countrycodes=kr&limit=8&accept-language=ko`);
     const j=await r.json();
-    return (j||[]).map(d=>{ const parts=(d.display_name||"").split(",").map(s=>s.trim());
-      return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:parts.slice(1,4).join(" ")}; });
+    return (j||[]).map(d=>{ const parts=(d.display_name||"").split(",").map(s=>s.trim()); const a=d.address||{};
+      const area=a.suburb||a.quarter||a.neighbourhood||a.borough||a.city_district||a.town||a.city||a.county||"";
+      const disp=[a.borough||a.city_district||a.city||a.county, a.suburb||a.quarter||a.neighbourhood].filter(Boolean).join(" ")||parts.slice(1,4).join(" ");
+      return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:disp,area}; });
   }catch(e){ return []; }
 }
 async function runSearch(q){
@@ -317,6 +321,8 @@ async function runSearch(q){
 }
 function selectPlace(c){
   S.pos={lat:c.lat,lng:c.lng}; S.placeName=c.name; S.placeShort=(c.addr||"").split(" ").slice(0,2).join(" ")||c.name;
+  // 선택한 장소의 지역을 네이버 검색에 붙여 그 동네로 고정 (엉뚱한 지역 방지)
+  S.area = c.area || areaFromAddr(c.addr);
   $("addrPanel").classList.remove("open"); $("cand").style.display="none";
   $("locLabel").textContent="📍 "+c.name;
   $("openAddr").style.display="none"; $("curLoc").style.display="block";
@@ -356,7 +362,8 @@ async function loadRestaurants(){
 const naverCache={};
 async function fetchNaver(){
   const catWord=CAT_WORD[S.cat]||"맛집";
-  const query=`${S.placeName} ${catWord==="맛집"?"맛집":catWord+" 맛집"}`;
+  const food=catWord==="맛집"?"맛집":catWord+" 맛집";
+  const query=`${S.placeName} ${S.area||""} ${food}`.replace(/\s+/g," ").trim(); // 지역 포함→엉뚱한 동네 방지
   if(naverCache[query]) return naverCache[query]; // 같은 검색 즉시
   const target=`https://m.place.naver.com/restaurant/list?query=${encodeURIComponent(query)}`;
   const proxies=[ "https://r.jina.ai/"+target,
