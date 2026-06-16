@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#ff5a36">
-<title>내가 정한 위치 맛집찾기 — 점심 룰렛</title>
-<meta property="og:title" content="맛집 룰렛 🎰">
-<meta property="og:description" content="내가 원하는 장소를 입력하면 그 근처 식당을 찾아 룰렛으로 휙휙 골라줍니다">
+<title>맛집 찾기 — 내가 정한 위치 근처</title>
+<meta property="og:title" content="맛집 찾기 🍜">
+<meta property="og:description" content="가고 싶은 장소를 검색해 클릭하면 그 근처 식당이 쭉, 클릭하면 메뉴·사진·리뷰까지">
 <style>
   :root{
     --orange:#ff5a36; --orange-d:#e8441f; --ink:#191919; --gray:#8a8f99;
-    --line:#ececef; --bg:#f6f7f9; --card:#fff; --green:#13b36a;
+    --line:#ececef; --bg:#f6f7f9; --card:#fff; --green:#13b36a; --blue:#03c75a;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
@@ -19,64 +19,61 @@
     background:var(--bg); color:var(--ink); font-size:16px; line-height:1.5;
     max-width:520px; margin:0 auto; min-height:100vh; padding-bottom:40px;
   }
-  header{
-    position:sticky; top:0; z-index:30; background:var(--card);
-    padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;
-  }
+  header{position:sticky; top:0; z-index:30; background:var(--card); padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;}
   header h1{font-size:19px; margin:0; font-weight:800; letter-spacing:-.5px;}
   header .loc{font-size:13px; color:var(--gray); margin-top:2px;}
   header .gear{margin-left:auto; background:none; border:none; font-size:22px; cursor:pointer; padding:4px;}
   .wrap{padding:16px;}
   .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px;}
 
-  /* search */
   .searchbar{display:flex; gap:8px;}
-  .searchbar input{
-    flex:1; border:1.5px solid var(--line); border-radius:12px; padding:13px; font-size:16px; min-width:0;
-  }
+  .searchbar input{flex:1; border:1.5px solid var(--line); border-radius:12px; padding:13px; font-size:16px; min-width:0;}
   .searchbar input:focus{border-color:var(--orange); outline:none;}
-  .searchbar button{
-    flex:0 0 auto; background:var(--orange); color:#fff; border:none; border-radius:12px;
-    padding:0 18px; font-size:16px; font-weight:800; cursor:pointer;
-  }
+  .searchbar button{flex:0 0 auto; background:var(--orange); color:#fff; border:none; border-radius:12px; padding:0 18px; font-size:16px; font-weight:800; cursor:pointer;}
   .ex{font-size:12.5px; color:var(--gray); margin-top:8px;}
   .ex b{color:var(--orange); font-weight:700; cursor:pointer;}
 
-  /* roulette */
-  .slot{text-align:center; padding:26px 14px; border-radius:18px; background:linear-gradient(135deg,#fff,#fff6f3); border:2px solid #ffd9cd;}
-  .slot .name{font-size:26px; font-weight:900; letter-spacing:-1px; min-height:34px; transition:opacity .08s; word-break:keep-all;}
-  .slot .cat{font-size:14px; color:var(--gray); margin-top:6px; min-height:20px;}
-  .slot .dist{font-size:13px; color:var(--orange); font-weight:700; margin-top:4px; min-height:18px;}
-  .slot.spinning .name{color:var(--gray);}
-  .badge-new{display:inline-block; background:var(--green); color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:20px; margin-left:6px; vertical-align:middle;}
+  /* 검색 결과(장소 후보) - 검색창 아래 인라인 리스트 */
+  .cand{list-style:none; margin:10px 0 0; padding:0;}
+  .cand li{display:flex; align-items:center; gap:10px; padding:12px 6px; border-top:1px solid var(--line); cursor:pointer;}
+  .cand li:hover{background:#fafafa;}
+  .cand .cn{font-weight:700; font-size:16px;}
+  .cand .ca{font-size:13px; color:var(--gray);}
+  .cand .pin{font-size:18px;}
 
-  .btn{display:block; width:100%; border:none; border-radius:14px; padding:16px; font-size:18px; font-weight:800; cursor:pointer; margin-top:12px; letter-spacing:-.3px;}
-  .btn-primary{background:var(--orange); color:#fff;}
-  .btn-primary:active{background:var(--orange-d);}
-  .btn-sub{background:#fff; color:var(--orange); border:2px solid var(--orange);}
-  .btn-ghost{background:#f0f1f4; color:var(--ink);}
-  .btn-row{display:flex; gap:10px;}
-  .maplink{display:block; text-align:center; margin-top:10px; font-size:14px; color:var(--orange); font-weight:700; text-decoration:none;}
+  .sec-title{font-size:15px; font-weight:800; margin:4px 0 10px; display:flex; align-items:center; gap:6px;}
+  .muted{color:var(--gray); font-size:14px;}
 
-  /* filters */
+  /* 필터 */
   .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 0 6px; -webkit-overflow-scrolling:touch;}
   .chip{flex:0 0 auto; border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:20px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;}
   .chip.on{background:var(--ink); color:#fff; border-color:var(--ink);}
   .rad{display:flex; gap:8px; margin-top:8px;}
   .rad .chip{flex:1; text-align:center;}
 
-  .sec-title{font-size:15px; font-weight:800; margin:4px 0 10px; display:flex; align-items:center; gap:6px;}
-  .muted{color:var(--gray); font-size:14px;}
-
-  /* list */
+  /* 식당 리스트 */
   .rlist{list-style:none; margin:0; padding:0;}
-  .ritem{display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--line); text-decoration:none; color:inherit;}
+  .ritem{border-bottom:1px solid var(--line);}
   .ritem:last-child{border-bottom:none;}
-  .ritem .info{flex:1; min-width:0;}
-  .ritem .rn{font-weight:700; font-size:16px; word-break:keep-all;}
-  .ritem .rc{font-size:13px; color:var(--gray);}
-  .ritem .rd{color:var(--orange); font-weight:700;}
-  .ritem .go{color:var(--gray); font-size:18px;}
+  .rhead{display:flex; align-items:center; gap:10px; padding:13px 4px; cursor:pointer;}
+  .rhead .info{flex:1; min-width:0;}
+  .rhead .rn{font-weight:700; font-size:16px; word-break:keep-all;}
+  .rhead .rc{font-size:13px; color:var(--gray);}
+  .rhead .rd{color:var(--orange); font-weight:700;}
+  .rhead .go{color:var(--gray); font-size:15px; transition:transform .2s;}
+  .ritem.open .rhead .go{transform:rotate(90deg);}
+  .badge-new{display:inline-block; background:var(--green); color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:20px; margin-left:6px; vertical-align:middle;}
+
+  /* 식당 상세 (메뉴/정보) */
+  .detail{display:none; padding:4px 6px 16px;}
+  .ritem.open .detail{display:block;}
+  .drow{display:flex; gap:8px; font-size:14px; padding:4px 0; color:#444;}
+  .drow .k{color:var(--gray); flex:0 0 64px;}
+  .dbtns{display:flex; gap:8px; margin-top:12px;}
+  .dbtn{flex:1; text-align:center; text-decoration:none; padding:12px; border-radius:11px; font-size:14.5px; font-weight:800;}
+  .dbtn.naver{background:var(--blue); color:#fff;}
+  .dbtn.kakao{background:#fee500; color:#3a1d1d;}
+  .dbtn.call{background:#f0f1f4; color:var(--ink);}
 
   /* settings */
   .panel{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:none; align-items:flex-end; justify-content:center;}
@@ -87,6 +84,9 @@
   .sheet input{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px; font-size:15px;}
   .sheet .hint{font-size:12.5px; color:var(--gray); margin-top:5px; line-height:1.45;}
   .sheet a{color:var(--orange);}
+  .btn{display:block; width:100%; border:none; border-radius:14px; padding:15px; font-size:17px; font-weight:800; cursor:pointer; margin-top:10px;}
+  .btn-primary{background:var(--orange); color:#fff;}
+  .btn-ghost{background:#f0f1f4; color:var(--ink);}
   .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#191919; color:#fff; padding:11px 18px; border-radius:30px; font-size:14px; z-index:80; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;}
   .toast.show{opacity:.95;}
   footer{text-align:center; font-size:12px; color:var(--gray); padding:14px;}
@@ -95,44 +95,31 @@
 <body>
 <header>
   <div>
-    <h1>🎰 맛집 룰렛</h1>
-    <div class="loc" id="locLabel">장소를 입력하세요</div>
+    <h1>🍜 맛집 찾기</h1>
+    <div class="loc" id="locLabel">가고 싶은 장소를 검색하세요</div>
   </div>
   <button class="gear" id="gearBtn" title="설정">⚙️</button>
 </header>
 
 <div class="wrap">
 
-  <!-- 장소 직접 입력 -->
+  <!-- 장소 검색 -->
   <div class="card">
     <div class="searchbar">
-      <input id="placeInput" placeholder="장소·건물·동네 (예: 판교역, 강남 교보타워)" autocomplete="off">
+      <input id="placeInput" placeholder="장소·건물·역·동네 (예: 강남 교보타워)" autocomplete="off">
       <button id="searchBtn">검색</button>
     </div>
-    <div class="ex">예시 탭하면 바로 검색 →
+    <div class="ex" id="exRow">예시 →
       <b data-q="판교역">판교역</b> ·
       <b data-q="강남역">강남역</b> ·
       <b data-q="여의도 IFC몰">여의도 IFC몰</b> ·
       <b data-q="홍대입구역">홍대입구역</b>
     </div>
-  </div>
-
-  <!-- 룰렛 -->
-  <div class="card">
-    <div class="slot" id="slot">
-      <div class="name" id="slotName">먼저 위치를 검색해요</div>
-      <div class="cat" id="slotCat"></div>
-      <div class="dist" id="slotDist"></div>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" id="spinBtn" style="flex:2" disabled>🎰 돌리기</button>
-      <button class="btn btn-sub" id="resetBtn" style="flex:1" disabled>다시</button>
-    </div>
-    <a class="maplink" id="mapLink" href="#" target="_blank" rel="noopener" style="display:none">🗺️ 지도·정보 보기</a>
+    <ul class="cand" id="cand" style="display:none"></ul>
   </div>
 
   <!-- 필터 -->
-  <div class="card">
+  <div class="card" id="filterCard" style="display:none">
     <div class="chips" id="catChips">
       <button class="chip on" data-cat="all">전체</button>
       <button class="chip" data-cat="korean">한식</button>
@@ -154,10 +141,10 @@
     <ul class="rlist" id="newList"></ul>
   </div>
 
-  <!-- 식당 목록 -->
+  <!-- 식당 리스트 -->
   <div class="card">
     <div class="sec-title">🍜 이 근처 식당 <span class="muted" id="listCount"></span></div>
-    <ul class="rlist" id="list"><li class="muted" style="padding:14px 4px">위 검색창에 가고 싶은 장소를 입력해보세요.</li></ul>
+    <ul class="rlist" id="list"><li class="muted" style="padding:14px 4px">위 검색창에 장소를 입력하고 검색하면, 그 근처 식당이 쭉 나옵니다.</li></ul>
   </div>
 
 </div>
@@ -166,126 +153,115 @@
 <div class="panel" id="panel">
   <div class="sheet">
     <h3>⚙️ 설정 (선택)</h3>
-    <div class="hint">키 없이도 OpenStreetMap으로 바로 작동해요. 아래 무료 카카오 키를 넣으면 <b>장소 검색·식당 정확도</b>가 크게 올라갑니다.</div>
+    <div class="hint">키 없이도 OpenStreetMap으로 작동해요. 무료 카카오 키를 넣으면 <b>장소·식당·메뉴정보</b> 정확도가 크게 올라갑니다.</div>
     <label>카카오 REST API 키 <span class="muted">(무료)</span></label>
     <input id="kakaoKey" placeholder="REST API 키 문자열" autocomplete="off">
     <div class="hint">
-      발급: <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 내 애플리케이션 → <b>앱 키 &gt; REST API 키</b> 복사 → 붙여넣기.<br>
-      ⚠️ 콘솔 → 플랫폼 → Web 사이트도메인에 <b id="originHint"></b> 도 등록해야 작동해요.
+      발급: <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 내 애플리케이션 → <b>앱 키 &gt; REST API 키</b> → 붙여넣기.<br>
+      ⚠️ 콘솔 → 플랫폼 → Web 사이트도메인에 <b id="originHint"></b> 등록 필요.
     </div>
     <button class="btn btn-primary" id="saveKeyBtn" style="margin-top:18px">저장</button>
-    <button class="btn btn-ghost" id="closePanelBtn" style="margin-top:8px">닫기</button>
+    <button class="btn btn-ghost" id="closePanelBtn">닫기</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
-<footer>비용 0원 · 광고 없음 · 입력한 장소 주변의 식당만 찾아줍니다</footer>
+<footer>비용 0원 · 광고 없음 · 입력한 장소 주변 식당만 찾아줍니다</footer>
 
 <script>
 "use strict";
-/* ===================== 상태 ===================== */
-const S = {
-  pos:null, placeName:"", cat:"all", radius:500,
-  list:[], picked:null,
-  kakao: localStorage.getItem('npf_kakao') || "",
-};
-
-/* ===================== 유틸 ===================== */
+const S = { pos:null, placeName:"", placeShort:"", cat:"all", radius:500, list:[], kakao: localStorage.getItem('npf_kakao')||"" };
 const $ = id => document.getElementById(id);
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
-function dist(a,b,c,d){
-  const R=6371000, toR=x=>x*Math.PI/180;
-  const dLat=toR(c-a), dLng=toR(d-b);
-  const s=Math.sin(dLat/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dLng/2)**2;
-  return Math.round(R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s)));
-}
-function fmtDist(m){ return m>=1000? (m/1000).toFixed(1)+"km" : m+"m"; }
-function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1900); }
+function dist(a,b,c,d){ const R=6371000,toR=x=>x*Math.PI/180; const dLat=toR(c-a),dLng=toR(d-b);
+  const s=Math.sin(dLat/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dLng/2)**2; return Math.round(R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))); }
+function fmtDist(m){ return m>=1000?(m/1000).toFixed(1)+"km":m+"m"; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-const KAKAO_CAT = { korean:"한식", chinese:"중식", japanese:"일식", western:["양식","치킨","피자","햄버거"], cafe:["카페","분식","제과"] };
-const OSM_CUISINE = { korean:["korean"], chinese:["chinese"], japanese:["japanese","sushi","ramen"],
-  western:["italian","pizza","burger","american","chicken","steak_house"], cafe:["cafe","coffee_shop","bakery","dessert"] };
+const KAKAO_CAT={korean:"한식",chinese:"중식",japanese:"일식",western:["양식","치킨","피자","햄버거"],cafe:["카페","분식","제과"]};
+const OSM_CUISINE={korean:["korean"],chinese:["chinese"],japanese:["japanese","sushi","ramen"],western:["italian","pizza","burger","american","chicken","steak_house"],cafe:["cafe","coffee_shop","bakery","dessert"]};
 
-/* ===================== 장소 검색(지오코딩) ===================== */
-async function geocodePlace(q){
+/* ===== 장소 후보 검색 (검색창 아래 리스트) ===== */
+async function geocodeCandidates(q){
   if(S.kakao){
     try{
-      const r=await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=1`,
-        {headers:{Authorization:"KakaoAK "+S.kakao}});
-      if(r.ok){ const j=await r.json(); const d=(j.documents||[])[0];
-        if(d) return {lat:+d.y, lng:+d.x, name:d.place_name+(d.road_address_name?` · ${d.road_address_name}`:"")}; }
+      const r=await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=8`,{headers:{Authorization:"KakaoAK "+S.kakao}});
+      if(r.ok){ const j=await r.json();
+        const a=(j.documents||[]).map(d=>({lat:+d.y,lng:+d.x,name:d.place_name,addr:d.road_address_name||d.address_name||""}));
+        if(a.length) return a; }
     }catch(e){}
   }
-  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=kr&limit=1&accept-language=ko`);
-  const j=await r.json();
-  if(j&&j[0]) return {lat:+j[0].lat, lng:+j[0].lon, name:(j[0].display_name||q).split(",").slice(0,3).join(", ")};
-  return null;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=kr&limit=8&accept-language=ko`);
+    const j=await r.json();
+    return (j||[]).map(d=>{ const parts=(d.display_name||"").split(",").map(s=>s.trim());
+      return {lat:+d.lat,lng:+d.lon,name:parts[0]||q,addr:parts.slice(1,4).join(" ")}; });
+  }catch(e){ return []; }
 }
-async function doSearch(q){
+async function runSearch(q){
   q=(q!=null?q:$("placeInput").value).trim();
   if(!q){ toast("가고 싶은 장소를 입력하세요"); $("placeInput").focus(); return; }
   $("placeInput").value=q;
-  $("locLabel").textContent="🔎 '"+q+"' 찾는 중…";
-  let g=null; try{ g=await geocodePlace(q); }catch(e){}
-  if(!g){ $("locLabel").textContent="❌ '"+q+"' 못 찾음"; toast("다른 키워드로 검색해보세요 (예: 역 이름)"); return; }
-  S.pos={lat:g.lat,lng:g.lng}; S.placeName=g.name;
-  localStorage.setItem('npf_place', q);
-  $("locLabel").textContent="📍 "+g.name;
+  const box=$("cand"); box.style.display="block"; box.innerHTML='<li class="muted">검색 중…</li>';
+  const cands=await geocodeCandidates(q);
+  if(!cands.length){ box.innerHTML='<li class="muted">검색 결과가 없어요. 다른 키워드로 해보세요 (예: 역 이름, 건물명)</li>'; return; }
+  box.innerHTML="";
+  cands.forEach(c=>{
+    const li=document.createElement("li");
+    li.innerHTML=`<span class="pin">📍</span><div style="flex:1;min-width:0"><div class="cn">${esc(c.name)}</div><div class="ca">${esc(c.addr)}</div></div><span class="go" style="color:#bbb">선택 ›</span>`;
+    li.onclick=()=>selectPlace(c);
+    box.appendChild(li);
+  });
+}
+function selectPlace(c){
+  S.pos={lat:c.lat,lng:c.lng}; S.placeName=c.name; S.placeShort=(c.addr||"").split(" ").slice(0,2).join(" ")||c.name;
+  localStorage.setItem('npf_place', $("placeInput").value.trim());
+  $("cand").style.display="none";
+  $("locLabel").textContent="📍 "+c.name+(c.addr?" · "+c.addr:"");
+  $("filterCard").style.display="block";
   loadRestaurants();
+  window.scrollTo({top:0});
 }
 
-/* ===================== 식당 불러오기 ===================== */
+/* ===== 식당 불러오기 ===== */
 async function loadRestaurants(){
   $("list").innerHTML='<li class="muted" style="padding:14px 4px">불러오는 중…</li>';
-  $("spinBtn").disabled=true; $("resetBtn").disabled=true;
   try{ S.list = S.kakao ? await fetchKakao() : await fetchOSM(); }
-  catch(e){ try{ S.list = await fetchOSM(); }catch(e2){ S.list=[]; } }
+  catch(e){ try{ S.list=await fetchOSM(); }catch(e2){ S.list=[]; } }
   S.list.sort((a,b)=>a.dist-b.dist);
   renderList(); renderNew();
-  const has=S.list.length>0;
-  $("spinBtn").disabled=!has; $("resetBtn").disabled=!has;
-  if(has) pickRoulette(true);
-  else { $("slotName").textContent="이 근처에 식당이 없어요"; $("slotCat").textContent=""; $("slotDist").textContent=""; $("mapLink").style.display="none"; }
 }
-
 async function fetchKakao(){
   let docs=[];
   for(const code of ["FD6","CE7"]){
-    for(let page=1; page<=3; page++){ // 카카오 최대 3페이지(45개)까지 다 긁기
+    for(let page=1; page<=3; page++){
       const u=`https://dapi.kakao.com/v2/local/search/category.json?category_group_code=${code}&x=${S.pos.lng}&y=${S.pos.lat}&radius=${S.radius}&sort=distance&size=15&page=${page}`;
       const r=await fetch(u,{headers:{Authorization:"KakaoAK "+S.kakao}});
       if(!r.ok) throw new Error("kakao "+r.status);
       const j=await r.json(); docs=docs.concat(j.documents||[]);
-      if(j.meta && j.meta.is_end) break;
+      if(j.meta&&j.meta.is_end) break;
     }
   }
-  let out = docs.map(d=>({
-    name:d.place_name, cat:(d.category_name||"").split(">").pop().trim(),
+  const out=docs.map(d=>({ name:d.place_name, cat:(d.category_name||"").split(">").pop().trim(),
     lat:+d.y, lng:+d.x, dist:(+d.distance)||dist(S.pos.lat,S.pos.lng,+d.y,+d.x),
-    url:d.place_url, isNew:false, cuisine:""
-  }));
+    phone:d.phone||"", addr:d.road_address_name||d.address_name||"", hours:"", kakaoUrl:d.place_url||"", isNew:false, cuisine:"" }));
   return filterCat(dedupe(out), true);
 }
-
 async function fetchOSM(){
   const r=S.radius;
   const q=`[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng});way["amenity"~"restaurant|cafe|fast_food"](around:${r},${S.pos.lat},${S.pos.lng}););out center 300;`;
   const mirrors=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
-  let j=null, lastErr;
-  for(const m of mirrors){
-    try{ const res=await fetch(m,{method:"POST",body:"data="+encodeURIComponent(q)}); if(!res.ok) throw new Error(res.status); j=await res.json(); break; }
-    catch(e){ lastErr=e; }
-  }
+  let j=null,lastErr;
+  for(const m of mirrors){ try{ const res=await fetch(m,{method:"POST",body:"data="+encodeURIComponent(q)}); if(!res.ok) throw new Error(res.status); j=await res.json(); break; }catch(e){ lastErr=e; } }
   if(!j) throw lastErr||new Error("overpass");
   const nowY=new Date().getFullYear();
-  let out=(j.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>{
+  const out=(j.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>{
     const t=e.tags, open=t.start_date||t.opening_date; let isNew=false;
     if(open){ const y=parseInt(String(open).slice(0,4)); if(!isNaN(y)&&y>=nowY-1) isNew=true; }
     const la=(e.lat!=null?e.lat:(e.center&&e.center.lat)), ln=(e.lon!=null?e.lon:(e.center&&e.center.lon));
     if(la==null||ln==null) return null;
-    return { name:t.name, cat:cuisineKo(t.cuisine,t.amenity), lat:la, lng:ln,
-      dist:dist(S.pos.lat,S.pos.lng,la,ln), isNew,
-      url:`https://www.openstreetmap.org/${e.type}/${e.id}`, cuisine:t.cuisine||"" };
+    return { name:t.name, cat:cuisineKo(t.cuisine,t.amenity), lat:la, lng:ln, dist:dist(S.pos.lat,S.pos.lng,la,ln),
+      phone:t.phone||t["contact:phone"]||"", addr:"", hours:t.opening_hours||"", kakaoUrl:"", isNew, cuisine:t.cuisine||"" };
   }).filter(Boolean);
   return filterCat(dedupe(out), false);
 }
@@ -295,37 +271,42 @@ function cuisineKo(c,amenity){
   const map={korean:"한식",chinese:"중식",japanese:"일식",sushi:"일식",ramen:"일식",italian:"양식",pizza:"피자",burger:"버거",american:"양식",chicken:"치킨",coffee_shop:"카페",cafe:"카페",bakery:"베이커리",thai:"태국",indian:"인도",vietnamese:"베트남"};
   const first=String(c).split(";")[0]; return map[first]||first;
 }
-function dedupe(arr){
-  const seen=new Set(); return arr.filter(x=>{ const k=x.name+"@"+Math.round(x.lat*1e4)+","+Math.round(x.lng*1e4); if(seen.has(k))return false; seen.add(k); return true; });
-}
-function filterCat(arr, isKakao){
+function dedupe(arr){ const s=new Set(); return arr.filter(x=>{ const k=x.name+"@"+Math.round(x.lat*1e4)+","+Math.round(x.lng*1e4); if(s.has(k))return false; s.add(k); return true; }); }
+function filterCat(arr,isKakao){
   if(S.cat==="all") return arr;
-  if(isKakao){
-    const want=KAKAO_CAT[S.cat];
-    return arr.filter(x=> Array.isArray(want)? want.some(w=>x.cat.includes(w)) : x.cat.includes(want));
-  }
-  const want=OSM_CUISINE[S.cat]||[];
-  return arr.filter(x=> want.some(w=>(x.cuisine||"").includes(w)) || matchKoCat(x.cat,S.cat));
+  if(isKakao){ const w=KAKAO_CAT[S.cat]; return arr.filter(x=>Array.isArray(w)?w.some(k=>x.cat.includes(k)):x.cat.includes(w)); }
+  const w=OSM_CUISINE[S.cat]||[]; return arr.filter(x=>w.some(k=>(x.cuisine||"").includes(k))||matchKoCat(x.cat,S.cat));
 }
-function matchKoCat(catKo,key){
-  const m={korean:["한식"],chinese:["중식"],japanese:["일식"],western:["양식","피자","버거","치킨"],cafe:["카페","베이커리","패스트푸드"]};
-  return (m[key]||[]).some(w=>catKo.includes(w));
-}
+function matchKoCat(catKo,key){ const m={korean:["한식"],chinese:["중식"],japanese:["일식"],western:["양식","피자","버거","치킨"],cafe:["카페","베이커리","패스트푸드"]}; return (m[key]||[]).some(w=>catKo.includes(w)); }
 
-/* ===================== 렌더 ===================== */
+/* ===== 렌더 (클릭→메뉴/정보 펼침) ===== */
+function naverUrl(r){ return `https://map.naver.com/p/search/${encodeURIComponent(r.name+" "+(S.placeShort||""))}`; }
 function itemRow(r){
-  const a=document.createElement("a"); a.className="ritem"; a.href=r.url||"#"; a.target="_blank"; a.rel="noopener";
-  a.innerHTML=`<div class="info">
+  const li=document.createElement("li"); li.className="ritem";
+  const head=document.createElement("div"); head.className="rhead";
+  head.innerHTML=`<div class="info">
       <div class="rn">${esc(r.name)} ${r.isNew?'<span class="badge-new">NEW</span>':''}</div>
       <div class="rc">${esc(r.cat||"음식점")} · <span class="rd">${fmtDist(r.dist)}</span></div>
     </div><span class="go">›</span>`;
-  return a;
+  const det=document.createElement("div"); det.className="detail";
+  let rows="";
+  if(r.addr) rows+=`<div class="drow"><span class="k">주소</span><span>${esc(r.addr)}</span></div>`;
+  if(r.phone) rows+=`<div class="drow"><span class="k">전화</span><span>${esc(r.phone)}</span></div>`;
+  if(r.hours) rows+=`<div class="drow"><span class="k">영업</span><span>${esc(r.hours)}</span></div>`;
+  rows+=`<div class="drow"><span class="k">거리</span><span>여기서 ${fmtDist(r.dist)}</span></div>`;
+  let btns=`<a class="dbtn naver" href="${naverUrl(r)}" target="_blank" rel="noopener">📋 네이버 메뉴·사진·리뷰</a>`;
+  if(r.kakaoUrl) btns+=`<a class="dbtn kakao" href="${esc(r.kakaoUrl)}" target="_blank" rel="noopener">카카오 상세</a>`;
+  if(r.phone) btns+=`<a class="dbtn call" href="tel:${esc(r.phone.replace(/[^0-9+]/g,''))}">📞 전화</a>`;
+  det.innerHTML=`<div style="font-size:12px;color:var(--gray);margin-bottom:6px">메뉴·사진·리뷰는 아래 버튼에서 (네이버/카카오 상세)</div>${rows}<div class="dbtns">${btns}</div>`;
+  head.onclick=()=>{ li.classList.toggle("open"); };
+  li.appendChild(head); li.appendChild(det);
+  return li;
 }
 function renderList(){
   const ul=$("list"); ul.innerHTML="";
-  $("listCount").textContent = S.list.length? `(${S.list.length}곳)` : "";
+  $("listCount").textContent=S.list.length?`(${S.list.length}곳)`:"";
   if(!S.list.length){ ul.innerHTML='<li class="muted" style="padding:14px 4px">이 근처엔 식당이 없어요. 반경을 넓혀보세요.</li>'; return; }
-  S.list.forEach(r=>ul.appendChild(itemRow(r))); // 전 식당 다 표시 (제한 없음)
+  S.list.forEach(r=>ul.appendChild(itemRow(r)));
 }
 function renderNew(){
   const news=S.list.filter(r=>r.isNew).slice(0,8);
@@ -334,59 +315,19 @@ function renderNew(){
   const ul=$("newList"); ul.innerHTML=""; news.forEach(r=>ul.appendChild(itemRow(r)));
 }
 
-/* ===================== 룰렛 ===================== */
-let spinTimer=null;
-function pickRoulette(silent){
-  if(!S.list.length || spinTimer) return;
-  const slot=$("slot"); slot.classList.add("spinning"); $("mapLink").style.display="none";
-  let n = silent? 1 : 16, i=0, delay=55;
-  const step=()=>{
-    const r=S.list[Math.floor(Math.random()*S.list.length)];
-    $("slotName").textContent=r.name; $("slotCat").textContent=r.cat||""; $("slotDist").textContent=fmtDist(r.dist);
-    i++;
-    if(i>=n){ spinTimer=null; slot.classList.remove("spinning"); S.picked=r; showPicked(r); return; }
-    if(i>n-6) delay+=38;
-    spinTimer=setTimeout(step, delay);
-  };
-  step();
-}
-function showPicked(r){
-  $("slotName").innerHTML=esc(r.name)+(r.isNew?' <span class="badge-new">NEW</span>':'');
-  $("slotCat").textContent=r.cat||"음식점";
-  $("slotDist").textContent="여기서 "+fmtDist(r.dist);
-  const m=$("mapLink"); if(r.url){ m.href=r.url; m.style.display="block"; } else m.style.display="none";
-}
-
-/* ===================== 이벤트 ===================== */
-$("searchBtn").onclick=()=>doSearch();
-$("placeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") doSearch(); });
-document.querySelector(".ex").addEventListener("click",e=>{ const b=e.target.closest("b[data-q]"); if(b) doSearch(b.dataset.q); });
-
-$("spinBtn").onclick=()=>pickRoulette(false);
-$("resetBtn").onclick=()=>{ S.picked=null; pickRoulette(false); };
-
-$("catChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return;
-  [...$("catChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on");
-  S.cat=b.dataset.cat; if(S.pos) loadRestaurants(); };
-$("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return;
-  [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on");
-  S.radius=+b.dataset.r; if(S.pos) loadRestaurants(); };
-
+/* ===== 이벤트 ===== */
+$("searchBtn").onclick=()=>runSearch();
+$("placeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") runSearch(); });
+$("exRow").addEventListener("click",e=>{ const b=e.target.closest("b[data-q]"); if(b) runSearch(b.dataset.q); });
+$("catChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("catChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.cat=b.dataset.cat; if(S.pos) loadRestaurants(); };
+$("radChips").onclick=e=>{ const b=e.target.closest(".chip"); if(!b)return; [...$("radChips").children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); S.radius=+b.dataset.r; if(S.pos) loadRestaurants(); };
 $("gearBtn").onclick=()=>{ $("kakaoKey").value=S.kakao; $("originHint").textContent=location.origin; $("panel").classList.add("open"); };
 $("closePanelBtn").onclick=()=>$("panel").classList.remove("open");
 $("panel").onclick=e=>{ if(e.target===$("panel")) $("panel").classList.remove("open"); };
-$("saveKeyBtn").onclick=()=>{
-  S.kakao=$("kakaoKey").value.trim(); localStorage.setItem('npf_kakao',S.kakao);
-  $("panel").classList.remove("open"); toast(S.kakao?"카카오 키 저장됨":"키 삭제됨");
-  if(S.placeName) doSearch(localStorage.getItem('npf_place')||"");
-};
+$("saveKeyBtn").onclick=()=>{ S.kakao=$("kakaoKey").value.trim(); localStorage.setItem('npf_kakao',S.kakao); $("panel").classList.remove("open"); toast(S.kakao?"카카오 키 저장됨":"키 삭제됨"); if(S.pos) loadRestaurants(); };
 
-/* ===================== 시작 ===================== */
-(function init(){
-  const last=localStorage.getItem('npf_place');
-  if(last){ $("placeInput").value=last; doSearch(last); }
-  else $("placeInput").focus();
-})();
+/* 시작 */
+(function init(){ const last=localStorage.getItem('npf_place'); if(last){ $("placeInput").value=last; runSearch(last); } else $("placeInput").focus(); })();
 </script>
 </body>
 </html>
