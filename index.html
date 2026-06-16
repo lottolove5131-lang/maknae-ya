@@ -521,8 +521,8 @@ $("closePanelBtn").onclick=()=>$("panel").classList.remove("open");
 $("panel").onclick=e=>{ if(e.target===$("panel")) $("panel").classList.remove("open"); };
 $("saveKeyBtn").onclick=()=>{ S.kakao=$("kakaoKey").value.trim(); localStorage.setItem('npf_kakao',S.kakao); $("panel").classList.remove("open"); toast(S.kakao?"카카오 키 저장됨":"키 삭제됨"); if(S.pos) loadRestaurants(); };
 
-/* 시작 — 빈 화면 + 주소 팝업 자동 (지난 검색어 안 띄움) */
-(function init(){ try{ localStorage.removeItem('npf_place'); }catch(e){} openAddrPopup(); })();
+/* 시작 — 빈 화면만 (팝업 자동 X, 「장소 검색」 버튼 누를 때만 열림 / 지난 검색어 안 띄움) */
+(function init(){ try{ localStorage.removeItem('npf_place'); }catch(e){} })();
 </script>
 </body>
 </html>
