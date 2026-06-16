@@ -469,7 +469,9 @@ function parseNaver(md){
   return cards.map((c,i)=>{
     const end=i+1<cards.length?cards[i+1].idx:md.length;
     const blk=md.slice(c.idx,end);
-    let name=c.text.replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(NV_PROMO,"").replace(/\s+/g," ").trim();
+    let name=c.text.replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"");
+    name=name.split(/네이버페이|예약 ?톡톡|톡톡|쿠폰|바로결제|예약하기|스마트주문|예약시/)[0]; // 홍보문구 이후 잘라냄
+    name=name.replace(NV_PROMO,"").replace(/\s+/g," ").trim();
     let cat="";
     const cm=name.match(/\s+([^ ]*(?:육류|고기요리|한식|중식당?|일식당?|양식|카페|찜|탕|면류?|국밥|치킨|피자|버거|곱창|회|초밥|라면|분식|냉면|[^ ]*요리|[^ ]*전문)[^ ]*)$/);
     if(cm){ cat=cm[1].replace(/,/g," "); name=name.slice(0,cm.index).trim(); }
